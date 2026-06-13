@@ -52,5 +52,19 @@ def mcp(
     run_mcp(action, server_name)
 
 
+@app.command()
+def eval(
+    benchmark: str = typer.Option(None, "--benchmark", "-b", help="内置 benchmark 名称（或 'all'）"),
+    scenario_file: str = typer.Option(None, "--scenario-file", "-f", help="场景文件路径（YAML）"),
+    model: str = typer.Option("claude-sonnet-4-6", "--model", "-m", help="使用的模型"),
+    output: str = typer.Option(None, "--output", "-o", help="导出报告路径"),
+    format: str = typer.Option("markdown", "--format", help="报告格式: markdown/json"),
+):
+    """运行评测基准测试"""
+    from .commands.eval import run_eval
+    
+    run_eval(benchmark, scenario_file, model, output, format)
+
+
 if __name__ == "__main__":
     app()
