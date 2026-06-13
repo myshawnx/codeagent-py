@@ -1,27 +1,21 @@
 [project]
 name = "codeagent"
 version = "0.1.0"
-description = "本地优先的 CLI 编码助手（Python 版）- 基于 agent-cli (TypeScript) 迁移"
+description = "本地优先的 CLI 编码助手（Python 版）"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
-authors = [
-    { name = "myshawn", email = "myshawn@example.com" }
-]
 dependencies = [
-    "anthropic>=0.40.0",
-    "pydantic>=2.0.0",
-    "typer>=0.12.0",
-    "rich>=13.0.0",
+    "anthropic>=0.109.1",
+    "pydantic>=2.13.4",
+    "rich>=15.0.0",
+    "typer>=0.26.7",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "pytest-cov>=4.1.0",
-    "mypy>=1.8.0",
-    "ruff>=0.1.0",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
 ]
 
 [project.scripts]
@@ -31,43 +25,34 @@ codeagent = "codeagent.cli.main:app"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.ruff]
-line-length = 120
-target-version = "py311"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "N", "W"]
-ignore = ["E501"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-asyncio_mode = "auto"
-
-[tool.mypy]
-python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+]
 
 [tool.coverage.run]
 source = ["src/codeagent"]
-omit = ["*/tests/*", "*/__pycache__/*"]
+omit = ["tests/*", "**/__pycache__/*"]
 
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
-    "if __name__ == .__main__.:",
+    "raise AssertionError",
     "raise NotImplementedError",
-    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
 ]
 
-[dependency-groups]
-dev = [
-    "pytest>=9.0.3",
-    "pytest-asyncio>=1.4.0",
-    "pytest-cov>=7.1.0",
-]
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
