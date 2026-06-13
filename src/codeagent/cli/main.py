@@ -62,8 +62,18 @@ def eval(
 ):
     """运行评测基准测试"""
     from .commands.eval import run_eval
-    
+
     run_eval(benchmark, scenario_file, model, output, format)
+
+
+@app.command()
+def sessions(
+    session_id: str = typer.Argument(None, help="Session ID to inspect (optional)"),
+):
+    """List or inspect session traces"""
+    from .commands.sessions import run_sessions
+
+    run_sessions(session_id)
 
 
 if __name__ == "__main__":

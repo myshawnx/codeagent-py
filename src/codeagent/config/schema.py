@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ApprovalMode(str, Enum):
@@ -63,8 +63,7 @@ class ProjectProfile(BaseModel):
 
 class AgentConfig(BaseModel):
     """Agent 配置（.agent/ 目录的聚合）"""
+    model_config = ConfigDict(extra="allow")
+
     policy: PolicyConfig = Field(default_factory=PolicyConfig)
     profile: ProjectProfile | None = Field(default=None)
-    
-    class Config:
-        extra = "allow"  # 允许额外字段

@@ -1,15 +1,20 @@
 """路径保护逻辑"""
 
-import fnmatch
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from ..config.schema import PathPolicy
 
 
 def path_matches_patterns(path: str, patterns: list[str]) -> bool:
-    """检查路径是否匹配任一模式（支持 glob）"""
+    """检查路径是否匹配任一模式（支持 glob，包括 ** 递归匹配）"""
+    pure_path = PurePath(path)
     for pattern in patterns:
-        if fnmatch.fnmatch(path, pattern):
+        # PurePath.match() supports **, but **/*.ext only matches nested paths.
+        # Try both the pattern and a root-level fallback (strip leading **/).
+        if pure_path.match(pattern):
+            return True
+        # If pattern starts with **/, also try without it to match root-level files.
+        if pattern.startswith("**/") and pure_path.match(pattern[3:]):
             return True
     return False
 

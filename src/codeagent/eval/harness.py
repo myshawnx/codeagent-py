@@ -7,16 +7,19 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from ..runtime.events import EventBus
 from ..runtime.session import AgentSession
+from ..trace import save_session_trace
 from .scoring import score_scenario
-from .types import Scenario, ScenarioResult, BenchmarkReport
+from .types import BenchmarkReport, Scenario, ScenarioResult
 
 
 class EvalHarness:
     """评测运行器"""
-    
-    def __init__(self, api_key: str | None = None):
+
+    def __init__(self, api_key: str | None = None, save_traces: bool = False):
         self.api_key = api_key
+        self.save_traces = save_traces
     
     async def run_scenario(self, scenario: Scenario) -> ScenarioResult:
         """运行单个场景"""
@@ -32,10 +35,12 @@ class EvalHarness:
                     file_path.write_text(content, encoding="utf-8")
                 
                 # 创建 Agent 会话
+                event_bus = EventBus()
                 session = AgentSession(
                     cwd=tmpdir,
                     api_key=self.api_key,
                     model=scenario.model,
+                    event_bus=event_bus,
                 )
                 
                 # 运行 Agent
@@ -63,9 +68,14 @@ class EvalHarness:
                 
                 # 评分
                 score, details = score_scenario(scenario, output_files)
-                
+
                 duration = time.time() - start_time
-                
+
+                # Save trace if requested.
+                if self.save_traces:
+                    trace_path = save_session_trace(tmpdir, event_bus.session_id, event_bus.events)
+                    details["trace_path"] = str(trace_path)
+
                 return ScenarioResult(
                     scenario_name=scenario.name,
                     success=score >= 0.8,  # 80% 以上算通过

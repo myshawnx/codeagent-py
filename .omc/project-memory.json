@@ -1,0 +1,402 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1781366158025,
+  "projectRoot": "/home/myshawn/projects/codeagent-py",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Python",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "pyproject.toml"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "pytest",
+        "version": null,
+        "category": "testing"
+      }
+    ],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": "uv run pytest tests/ --collect-only -q 2>&1 | tail -3",
+    "lintCommand": "ruff check",
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "src",
+      "tests"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "agent-cli": {
+      "path": "agent-cli",
+      "purpose": null,
+      "fileCount": 9,
+      "lastAccessed": 1781366158015,
+      "keyFiles": [
+        "LICENSE",
+        "README.md",
+        "biome.json",
+        "package-lock.json",
+        "package.json"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 0,
+      "lastAccessed": 1781366158020,
+      "keyFiles": []
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 2,
+      "lastAccessed": 1781366158021,
+      "keyFiles": [
+        "__init__.py",
+        "conftest.py"
+      ]
+    },
+    "agent-cli/docs": {
+      "path": "agent-cli/docs",
+      "purpose": "Documentation",
+      "fileCount": 10,
+      "lastAccessed": 1781366158022,
+      "keyFiles": [
+        "Agent-CLI-开发周期总览.md",
+        "Agent-CLI-技术实现文档.md",
+        "Agent-CLI-需求文档.md"
+      ]
+    },
+    "tests/fixtures": {
+      "path": "tests/fixtures",
+      "purpose": "Test fixtures",
+      "fileCount": 0,
+      "lastAccessed": 1781366158022,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/codeagent/runtime/loop.py",
+      "accessCount": 5,
+      "lastAccessed": 1781368807801,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/eval/harness.py",
+      "accessCount": 5,
+      "lastAccessed": 1781369553898,
+      "type": "file"
+    },
+    {
+      "path": "tests/unit/test_events.py",
+      "accessCount": 4,
+      "lastAccessed": 1781368893350,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/cli/commands/ask.py",
+      "accessCount": 4,
+      "lastAccessed": 1781369518622,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/runtime/session.py",
+      "accessCount": 4,
+      "lastAccessed": 1781370017489,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/policy/path.py",
+      "accessCount": 3,
+      "lastAccessed": 1781368994031,
+      "type": "file"
+    },
+    {
+      "path": "tests/integration/test_session.py",
+      "accessCount": 3,
+      "lastAccessed": 1781369166789,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/config/schema.py",
+      "accessCount": 3,
+      "lastAccessed": 1781369350319,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/runtime/types.py",
+      "accessCount": 2,
+      "lastAccessed": 1781367374942,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/util/__init__.py",
+      "accessCount": 2,
+      "lastAccessed": 1781369084889,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/runtime/tools.py",
+      "accessCount": 2,
+      "lastAccessed": 1781369129149,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/trace/__init__.py",
+      "accessCount": 2,
+      "lastAccessed": 1781369461568,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/cli/main.py",
+      "accessCount": 2,
+      "lastAccessed": 1781369488292,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/trace/writer.py",
+      "accessCount": 2,
+      "lastAccessed": 1781369640284,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 2,
+      "lastAccessed": 1781370324492,
+      "type": "file"
+    },
+    {
+      "path": "IMPROVEMENT_SUMMARY.md",
+      "accessCount": 2,
+      "lastAccessed": 1781370512250,
+      "type": "file"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "accessCount": 1,
+      "lastAccessed": 1781366199033,
+      "type": "file"
+    },
+    {
+      "path": "pyproject.toml",
+      "accessCount": 1,
+      "lastAccessed": 1781366199086,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/policy/engine.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366247518,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/policy/types.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366247578,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/policy/gateway.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366249298,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/runtime/extensions.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366249403,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/eval/types.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366266412,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/eval/scoring.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366266629,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/eval/loader.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366267060,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/eval/report.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366267557,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/cli/commands/eval.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366271416,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/loop/guards_ext.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366283122,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/context/profile.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366283175,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/context/memory.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366283815,
+      "type": "file"
+    },
+    {
+      "path": "tests/conftest.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366284518,
+      "type": "file"
+    },
+    {
+      "path": "tests/unit/test_policy.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366285014,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/loop/guards.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366329018,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/loop/types.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366330676,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/policy/command.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366330727,
+      "type": "file"
+    },
+    {
+      "path": "tests/unit/test_eval.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366330931,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/eval/benchmarks/simple_edit.yaml",
+      "accessCount": 1,
+      "lastAccessed": 1781366330619,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/cli/commands/init.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366331130,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/providers/types.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366629770,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/providers/base.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366653036,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/providers/anthropic_provider.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366751529,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/providers/mock_provider.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366790673,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/runtime/events.py",
+      "accessCount": 1,
+      "lastAccessed": 1781366906469,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/providers/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1781367120167,
+      "type": "file"
+    },
+    {
+      "path": "tests/unit/test_providers.py",
+      "accessCount": 1,
+      "lastAccessed": 1781367439322,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/util/workspace.py",
+      "accessCount": 1,
+      "lastAccessed": 1781369067657,
+      "type": "file"
+    },
+    {
+      "path": "tests/unit/test_tool_safety.py",
+      "accessCount": 1,
+      "lastAccessed": 1781369212463,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/cli/commands/sessions.py",
+      "accessCount": 1,
+      "lastAccessed": 1781369475598,
+      "type": "file"
+    },
+    {
+      "path": "tests/unit/test_trace.py",
+      "accessCount": 1,
+      "lastAccessed": 1781369613649,
+      "type": "file"
+    },
+    {
+      "path": "src/codeagent/context/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1781369990995,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}
