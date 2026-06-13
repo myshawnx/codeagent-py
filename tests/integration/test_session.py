@@ -25,7 +25,7 @@ class TestAgentSession:
         """测试会话创建"""
         session = AgentSession(cwd=temp_repo)
         assert session.cwd == temp_repo
-        assert len(session.tools) == 4  # read, write, edit, bash
+        assert len(session.tools) == 6  # read, write, edit, apply_patch, git_diff, bash
     
     @pytest.mark.asyncio
     async def test_tool_registration(self, temp_repo):
@@ -34,10 +34,12 @@ class TestAgentSession:
         
         initial_count = len(session.tools)
         
-        # 工具已经注册
+        # Tools are registered
         assert "read" in session.tools
         assert "write" in session.tools
         assert "edit" in session.tools
+        assert "apply_patch" in session.tools
+        assert "git_diff" in session.tools
         assert "bash" in session.tools
 
 

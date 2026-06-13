@@ -1,180 +1,240 @@
-"""Agent 主循环 - 核心执行引擎"""
+"""Agent main loop - core execution engine.
 
-import asyncio
-import uuid
+The loop is provider-agnostic: it speaks only :class:`ModelProvider` and the
+normalized types in ``providers.types``. Every meaningful step emits a
+structured :class:`Event` so traces, evals, and debugging share one source of
+truth.
+"""
+
+from __future__ import annotations
+
 from typing import Any
 
-from anthropic import Anthropic
-from anthropic.types import Message as AnthropicMessage
-
+from ..providers import (
+    ModelMessage,
+    ModelProvider,
+    ModelRequest,
+    ModelResponse,
+    ProviderError,
+    TextBlock,
+    ToolSchema,
+    ToolUseBlock,
+    Usage,
+)
+from .events import EventBus, EventType
 from .extensions import ExtensionManager
-from .types import Message, TextBlock, ToolResultBlock, ToolUseBlock, Usage
 
 
 class AgentLoop:
-    """Agent 主循环"""
-    
+    """Drives the model<->tool conversation until the model stops."""
+
     def __init__(
         self,
-        client: Anthropic,
+        provider: ModelProvider,
         model: str,
         tools: dict[str, Any],  # {name: Tool}
         extension_manager: ExtensionManager,
+        event_bus: EventBus,
+        system: str | None = None,
         max_turns: int = 50,
     ):
-        self.client = client
+        self.provider = provider
         self.model = model
         self.tools = tools
         self.extension_manager = extension_manager
+        self.events = event_bus
+        self.system = system
         self.max_turns = max_turns
-        self.messages: list[dict] = []
-        self.total_usage = Usage(input_tokens=0, output_tokens=0)
-    
+        self.messages: list[ModelMessage] = []
+        self.total_usage = Usage()
+
     async def run(self, prompt: str) -> str:
-        """
-        运行 Agent 循环
-        
-        返回最终的助手响应文本
-        """
-        # 添加用户消息
-        self.messages.append({"role": "user", "content": prompt})
-        
+        """Run the agent loop and return the final assistant text."""
+        self.messages.append(
+            ModelMessage(role="user", content=[{"type": "text", "text": prompt}])
+        )
+
         for turn in range(self.max_turns):
-            # 调用 Anthropic API
-            response = await self._call_api()
-            
-            # 更新 token 使用统计
-            if response.usage:
-                self.total_usage.input_tokens += response.usage.input_tokens
-                self.total_usage.output_tokens += response.usage.output_tokens
-                self.extension_manager.fire_message_end({
-                    "input_tokens": response.usage.input_tokens,
-                    "output_tokens": response.usage.output_tokens,
-                    "total_tokens": self.total_usage.total_tokens,
-                })
-            
-            # 处理响应
-            if response.stop_reason == "end_turn":
-                # 完成
-                text = self._extract_text(response.content)
-                self.messages.append({"role": "assistant", "content": response.content})
-                return text
-            
+            turn_event = self.events.emit(EventType.TURN_START, {"turn": turn})
+
+            try:
+                response = await self._call_provider(parent_id=turn_event.id)
+            except ProviderError as exc:
+                self.events.emit(
+                    EventType.ERROR,
+                    {"stage": "model_request", "error": str(exc)},
+                    parent_id=turn_event.id,
+                )
+                raise
+
+            self._record_usage(response, parent_id=turn_event.id)
+
+            # Persist the assistant turn verbatim so tool_use ids round-trip.
+            assistant_content = [b.model_dump() for b in response.content]
+            self.messages.append(
+                ModelMessage(role="assistant", content=assistant_content)
+            )
+
             if response.stop_reason == "tool_use":
-                # 执行工具
-                assistant_content = response.content
-                self.messages.append({"role": "assistant", "content": assistant_content})
-                
-                # 执行所有工具调用
-                tool_results = await self._execute_tools(assistant_content)
-                
-                # 回灌工具结果
-                self.messages.append({"role": "user", "content": tool_results})
-                
-                # 继续循环
+                tool_results = await self._execute_tools(
+                    response, parent_id=turn_event.id
+                )
+                self.messages.append(
+                    ModelMessage(role="user", content=tool_results)
+                )
+                self.events.emit(
+                    EventType.TURN_END,
+                    {"turn": turn, "stop_reason": response.stop_reason},
+                    parent_id=turn_event.id,
+                )
                 continue
-            
-            # 其他 stop_reason
-            text = self._extract_text(response.content)
-            self.messages.append({"role": "assistant", "content": response.content})
-            return text
-        
-        # 达到最大轮数
+
+            # Any non-tool stop reason terminates the loop.
+            self.events.emit(
+                EventType.TURN_END,
+                {"turn": turn, "stop_reason": response.stop_reason},
+                parent_id=turn_event.id,
+            )
+            return response.text()
+
         return "Maximum turns reached"
-    
-    async def _call_api(self) -> AnthropicMessage:
-        """调用 Anthropic API"""
-        # 转换工具定义为 Anthropic 格式
+
+    async def _call_provider(self, parent_id: str | None) -> ModelResponse:
         tools_schema = [
-            {
-                "name": tool.name,
-                "description": tool.description,
-                "input_schema": tool.parameters,
-            }
+            ToolSchema(
+                name=tool.name,
+                description=tool.description,
+                input_schema=tool.parameters,
+            )
             for tool in self.tools.values()
         ]
-        
-        # 调用 API
-        response = self.client.messages.create(
+        request = ModelRequest(
             model=self.model,
-            max_tokens=4096,
             messages=self.messages,
             tools=tools_schema,
+            system=self.system,
         )
-        
+        self.events.emit(
+            EventType.MODEL_REQUEST,
+            {
+                "model": self.model,
+                "num_messages": len(self.messages),
+                "num_tools": len(tools_schema),
+            },
+            parent_id=parent_id,
+        )
+        response = await self.provider.generate(request)
+        self.events.emit(
+            EventType.MODEL_RESPONSE,
+            {
+                "stop_reason": response.stop_reason,
+                "text": response.text()[:500],
+                "tool_uses": [t.name for t in response.tool_uses()],
+                "usage": response.usage.model_dump(),
+            },
+            parent_id=parent_id,
+        )
         return response
-    
-    async def _execute_tools(self, content: list) -> list[dict]:
-        """执行工具调用"""
-        tool_results = []
-        
-        for block in content:
-            if not isinstance(block, dict):
-                continue
-                
-            if block.get("type") != "tool_use":
-                continue
-            
-            tool_use_id = block["id"]
-            tool_name = block["name"]
-            tool_input = block.get("input", {})
-            
-            # 触发 tool_call 钩子
-            verdict = self.extension_manager.fire_tool_call(tool_name, tool_input)
-            if verdict and verdict.get("block"):
-                # 策略拒绝
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_use_id,
-                    "content": f"Tool blocked: {verdict.get('reason', 'No reason given')}",
-                    "is_error": True,
-                })
-                continue
-            
-            # 执行工具
-            tool = self.tools.get(tool_name)
-            if not tool:
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_use_id,
-                    "content": f"Tool not found: {tool_name}",
-                    "is_error": True,
-                })
-                continue
-            
-            try:
-                # 执行工具（异步）
-                result = await tool.execute(**tool_input)
-                result_str = str(result)
-                
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_use_id,
-                    "content": result_str,
-                    "is_error": False,
-                })
-                
-                # 触发 tool_result 钩子
-                self.extension_manager.fire_tool_result(tool_name, result, False)
-                
-            except Exception as e:
-                error_msg = f"Tool execution failed: {str(e)}"
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_use_id,
-                    "content": error_msg,
-                    "is_error": True,
-                })
-                
-                # 触发 tool_result 钩子
-                self.extension_manager.fire_tool_result(tool_name, error_msg, True)
-        
+
+    def _record_usage(self, response: ModelResponse, parent_id: str | None) -> None:
+        self.total_usage = self.total_usage + response.usage
+        self.extension_manager.fire_message_end(
+            {
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens,
+                "total_tokens": self.total_usage.total_tokens,
+            }
+        )
+
+    async def _execute_tools(
+        self, response: ModelResponse, parent_id: str | None
+    ) -> list[dict]:
+        """Execute every tool-use block, returning normalized tool_result dicts."""
+        tool_results: list[dict] = []
+
+        for block in response.tool_uses():
+            tool_results.append(await self._execute_one(block, parent_id))
+
         return tool_results
-    
-    def _extract_text(self, content: list) -> str:
-        """从内容中提取文本"""
-        text_parts = []
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "text":
-                text_parts.append(block.get("text", ""))
-        return "\n".join(text_parts)
+
+    async def _execute_one(self, block: ToolUseBlock, parent_id: str | None) -> dict:
+        tool_use_id = block.id
+        tool_name = block.name
+        tool_input = block.input
+
+        call_event = self.events.emit(
+            EventType.TOOL_CALL_REQUESTED,
+            {"tool": tool_name, "input": tool_input, "tool_use_id": tool_use_id},
+            parent_id=parent_id,
+        )
+
+        # Extension hooks (policy + loop guards) may veto the call.
+        verdict = self.extension_manager.fire_tool_call(tool_name, tool_input)
+        blocked = bool(verdict and verdict.get("block"))
+        self.events.emit(
+            EventType.POLICY_VERDICT,
+            {
+                "tool": tool_name,
+                "verdict": "deny" if blocked else "allow",
+                "reason": verdict.get("reason") if verdict else None,
+            },
+            parent_id=call_event.id,
+        )
+
+        if blocked:
+            reason = verdict.get("reason", "No reason given")
+            return self._error_result(tool_use_id, f"Tool blocked: {reason}")
+
+        tool = self.tools.get(tool_name)
+        if tool is None:
+            return self._error_result(tool_use_id, f"Tool not found: {tool_name}")
+
+        self.events.emit(
+            EventType.TOOL_START,
+            {"tool": tool_name, "tool_use_id": tool_use_id},
+            parent_id=call_event.id,
+        )
+
+        try:
+            result = await tool.execute(**tool_input)
+            result_str = str(result)
+            self.extension_manager.fire_tool_result(tool_name, result, False)
+            self.events.emit(
+                EventType.TOOL_END,
+                {
+                    "tool": tool_name,
+                    "tool_use_id": tool_use_id,
+                    "is_error": False,
+                    "result": result_str[:500],
+                },
+                parent_id=call_event.id,
+            )
+            return {
+                "type": "tool_result",
+                "tool_use_id": tool_use_id,
+                "content": result_str,
+                "is_error": False,
+            }
+        except Exception as exc:  # noqa: BLE001 - surface as tool error to model
+            error_msg = f"Tool execution failed: {exc}"
+            self.extension_manager.fire_tool_result(tool_name, error_msg, True)
+            self.events.emit(
+                EventType.TOOL_END,
+                {
+                    "tool": tool_name,
+                    "tool_use_id": tool_use_id,
+                    "is_error": True,
+                    "result": error_msg,
+                },
+                parent_id=call_event.id,
+            )
+            return self._error_result(tool_use_id, error_msg)
+
+    @staticmethod
+    def _error_result(tool_use_id: str, message: str) -> dict:
+        return {
+            "type": "tool_result",
+            "tool_use_id": tool_use_id,
+            "content": message,
+            "is_error": True,
+        }

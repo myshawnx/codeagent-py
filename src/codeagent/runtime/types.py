@@ -1,81 +1,49 @@
-"""运行时类型定义"""
+"""Runtime type definitions.
 
-from typing import Any, Callable, Coroutine, Literal, Protocol
+The canonical model/content types now live in ``codeagent.providers.types``.
+This module keeps the tool + extension-API types and re-exports the provider
+block types for backward compatibility with older imports.
+"""
 
-from pydantic import BaseModel
+from typing import Any, Protocol
+
+from pydantic import BaseModel, ConfigDict
+
+# Re-export normalized provider types so existing imports keep working.
+from ..providers.types import (  # noqa: F401
+    TextBlock,
+    ToolResultBlock,
+    ToolUseBlock,
+    Usage,
+)
 
 
 class ToolDefinition(BaseModel):
-    """工具定义"""
+    """Static description of a tool (name + JSON schema)."""
+
     name: str
     description: str
     parameters: dict[str, Any]  # JSON Schema
-    
+
 
 class Tool(BaseModel):
-    """工具实例"""
+    """A runnable tool: schema plus an async ``execute`` callable."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     name: str
     description: str
     parameters: dict[str, Any]
-    execute: Any  # Callable[[dict], Coroutine[Any, Any, str]]
-    
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class Message(BaseModel):
-    """消息"""
-    role: Literal["user", "assistant"]
-    content: Any  # str | list
-
-
-class ToolUseBlock(BaseModel):
-    """工具使用块"""
-    type: Literal["tool_use"] = "tool_use"
-    id: str
-    name: str
-    input: dict[str, Any]
-
-
-class TextBlock(BaseModel):
-    """文本块"""
-    type: Literal["text"] = "text"
-    text: str
-
-
-class ToolResultBlock(BaseModel):
-    """工具结果块"""
-    type: Literal["tool_result"] = "tool_result"
-    tool_use_id: str
-    content: str
-    is_error: bool = False
-
-
-class Usage(BaseModel):
-    """Token 使用统计"""
-    input_tokens: int
-    output_tokens: int
-    
-    @property
-    def total_tokens(self) -> int:
-        return self.input_tokens + self.output_tokens
+    execute: Any  # Callable[..., Awaitable[str]]
 
 
 class ExtensionAPI(Protocol):
-    """提供给扩展的 API"""
-    
-    def register_tool(self, tool: Tool) -> None:
-        """注册工具"""
-        ...
-    
-    def set_active_tools(self, names: list[str]) -> None:
-        """设置活跃工具列表"""
-        ...
-    
-    def append_entry(self, entry_type: str, data: dict) -> None:
-        """追加自定义 entry"""
-        ...
-    
-    def send_message(self, content: str) -> None:
-        """发送消息给 agent"""
-        ...
+    """API surface provided to extensions by the session."""
+
+    def register_tool(self, tool: Tool) -> None: ...
+
+    def set_active_tools(self, names: list[str]) -> None: ...
+
+    def append_entry(self, entry_type: str, data: dict) -> None: ...
+
+    def send_message(self, content: str) -> None: ...

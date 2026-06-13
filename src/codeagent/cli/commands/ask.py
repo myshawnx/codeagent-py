@@ -10,7 +10,9 @@ from ...config.schema import ApprovalMode
 from ...loop.guards_ext import LoopGuardsExtension
 from ...loop.types import LoopGuardOptions
 from ...policy.gateway import PolicyGateway
+from ...runtime.events import EventBus
 from ...runtime.session import AgentSession
+from ...trace import attach_trace_writer, get_trace_dir
 
 console = Console()
 
@@ -57,11 +59,18 @@ def run_ask(prompt: str, mode: str, print_mode: bool):
     ]
     
     # 创建会话
+    event_bus = EventBus()
     session = AgentSession(
         cwd=cwd,
         api_key=api_key,
         extensions=extensions,
+        event_bus=event_bus,
     )
+
+    # Attach trace writer to save session automatically.
+    trace_dir = get_trace_dir(cwd)
+    trace_path = trace_dir / f"{event_bus.session_id}.jsonl"
+    trace_writer = attach_trace_writer(event_bus, trace_path)
     
     # 运行
     console.print(f"[bold blue]🤖 CodeAgent[/bold blue] ({mode} mode)")
@@ -73,3 +82,6 @@ def run_ask(prompt: str, mode: str, print_mode: bool):
         console.print(result)
     except Exception as e:
         console.print(f"\n[red]Error:[/red] {e}")
+    finally:
+        trace_writer.close()
+        console.print(f"\n[dim]Trace saved: {trace_path.name}[/dim]")
