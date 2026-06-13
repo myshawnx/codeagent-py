@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.109.1",
     "pydantic>=2.13.4",
+    "pyyaml>=6.0.3",
     "rich>=15.0.0",
     "typer>=0.26.7",
 ]

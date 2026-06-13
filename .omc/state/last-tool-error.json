@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"tree -L 2 -I '__pycache__|*.pyc|.pytest_cache|.venv' src/\",\"description\":\"Show final project structure\"}",
+  "error": "Exit code 127\n/bin/bash: line 1: tree: command not found",
+  "timestamp": "2026-06-13T12:30:53.527Z",
+  "retry_count": 1
+}

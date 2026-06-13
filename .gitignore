@@ -21,20 +21,10 @@ wheels/
 *.egg
 
 # Virtual environments
+.venv/
 venv/
-env/
 ENV/
-.venv
-
-# uv
-.uv/
-uv.lock
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
+env/
 
 # IDE
 .vscode/
@@ -43,10 +33,15 @@ htmlcov/
 *.swo
 *~
 
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Agent
+.agent/
+
 # OS
 .DS_Store
 Thumbs.db
-
-# Project specific
-.agent/
-*.log
