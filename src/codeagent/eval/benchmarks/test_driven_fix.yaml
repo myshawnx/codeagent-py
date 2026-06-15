@@ -1,0 +1,32 @@
+# Test-driven repair scenarios
+scenarios:
+  - name: "fix-calculator-without-test-edits"
+    description: "Fix production code for a failing test without changing the test"
+    prompt: "The tests are failing. Fix the implementation in src/calculator.py. Do not edit tests."
+    input_files:
+      src/calculator.py: |
+        def add(a, b):
+            return a - b
+      tests/test_calculator.py: |
+        from src.calculator import add
+
+
+        def test_add():
+            assert add(2, 3) == 5
+    expected_files:
+      src/calculator.py: |
+        def add(a, b):
+            return a + b
+    expected_changed_files:
+      - src/calculator.py
+    forbidden_files:
+      - tests/test_calculator.py
+      - tests/**
+    test_commands:
+      - python -m pytest -q
+    scoring:
+      file_exact: 1.0
+      expected_files_changed: 1.0
+      forbidden_files_clean: 1.0
+      tests_passed: 1.0
+    timeout_sec: 60

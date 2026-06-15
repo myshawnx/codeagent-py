@@ -1,0 +1,29 @@
+# Project-instruction following scenarios
+scenarios:
+  - name: "follow-agents-style-guide"
+    description: "Honor AGENTS.md when creating a helper module"
+    prompt: "Create src/slug.py with a normalize_title helper."
+    input_files:
+      AGENTS.md: |
+        Project style:
+        - Python helpers must include type annotations.
+        - Do not use print statements in helper modules.
+        - Prefer small pure functions.
+      src/__init__.py: ""
+    expected_files:
+      src/slug.py: |
+        import re
+
+
+        def normalize_title(title: str) -> str:
+            cleaned = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+            return cleaned
+    expected_changed_files:
+      - src/slug.py
+    forbidden_files:
+      - AGENTS.md
+    scoring:
+      file_exact: 1.0
+      expected_files_changed: 1.0
+      forbidden_files_clean: 1.0
+    timeout_sec: 45

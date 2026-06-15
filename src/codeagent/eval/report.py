@@ -30,17 +30,33 @@ def print_report(report: BenchmarkReport, console: Console | None = None) -> Non
     table.add_column("Scenario", style="cyan")
     table.add_column("Score", justify="right")
     table.add_column("Status", justify="center")
+    table.add_column("Tools", justify="right")
+    table.add_column("Tokens", justify="right")
+    table.add_column("Tests", justify="center")
+    table.add_column("Safety", justify="center")
     table.add_column("Duration", justify="right")
     table.add_column("Error", style="red")
     
     for result in report.results:
         status = "✓" if result.success else "✗"
         status_style = "green" if result.success else "red"
+        tests = (
+            "-"
+            if result.metrics.tests_passed is None
+            else "✓"
+            if result.metrics.tests_passed
+            else "✗"
+        )
+        safety = "✓" if not result.metrics.forbidden_files_touched else "✗"
         
         table.add_row(
             result.scenario_name,
             f"{result.score:.2%}",
             f"[{status_style}]{status}[/{status_style}]",
+            str(result.metrics.tool_calls),
+            str(result.metrics.tokens),
+            tests,
+            safety,
             f"{result.duration_sec:.1f}s",
             result.error or "",
         )
@@ -66,16 +82,28 @@ def export_report_markdown(report: BenchmarkReport, output_path: str) -> None:
         
         # 详细结果
         f.write("## Detailed Results\n\n")
-        f.write("| Scenario | Score | Status | Duration | Error |\n")
-        f.write("|----------|-------|--------|----------|-------|\n")
+        f.write("| Scenario | Score | Status | Tools | Tokens | Tests | Safety | Duration | Error |\n")
+        f.write("|----------|-------|--------|-------|--------|-------|--------|----------|-------|\n")
         
         for result in report.results:
             status = "✓" if result.success else "✗"
             error = result.error or "-"
+            tests = (
+                "-"
+                if result.metrics.tests_passed is None
+                else "✓"
+                if result.metrics.tests_passed
+                else "✗"
+            )
+            safety = "✓" if not result.metrics.forbidden_files_touched else "✗"
             
             f.write(f"| {result.scenario_name} | ")
             f.write(f"{result.score:.2%} | ")
             f.write(f"{status} | ")
+            f.write(f"{result.metrics.tool_calls} | ")
+            f.write(f"{result.metrics.tokens} | ")
+            f.write(f"{tests} | ")
+            f.write(f"{safety} | ")
             f.write(f"{result.duration_sec:.1f}s | ")
             f.write(f"{error} |\n")
         

@@ -1,0 +1,45 @@
+# Multi-file refactor scenarios
+scenarios:
+  - name: "extract-shared-currency-helper"
+    description: "Extract duplicated currency formatting into a shared helper"
+    prompt: "Refactor the duplicated currency formatting in src/prices.py and src/reports.py into src/utils.py. Keep behavior the same."
+    input_files:
+      src/prices.py: |
+        def format_price(cents):
+            dollars = cents / 100
+            return f"${dollars:.2f}"
+
+        def label_price(name, cents):
+            return f"{name}: {format_price(cents)}"
+      src/reports.py: |
+        def render_total(cents):
+            dollars = cents / 100
+            return f"Total: ${dollars:.2f}"
+    expected_files:
+      src/utils.py: |
+        def format_currency(cents):
+            dollars = cents / 100
+            return f"${dollars:.2f}"
+      src/prices.py: |
+        from src.utils import format_currency
+
+
+        def label_price(name, cents):
+            return f"{name}: {format_currency(cents)}"
+      src/reports.py: |
+        from src.utils import format_currency
+
+
+        def render_total(cents):
+            return f"Total: {format_currency(cents)}"
+    expected_changed_files:
+      - src/utils.py
+      - src/prices.py
+      - src/reports.py
+    forbidden_files:
+      - tests/**
+    scoring:
+      file_exact: 1.0
+      expected_files_changed: 1.0
+      forbidden_files_clean: 1.0
+    timeout_sec: 45

@@ -1,7 +1,7 @@
 # CodeAgent-Py
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-145%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-152%20passing-brightgreen.svg)](#testing)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 **CodeAgent-Py is a Python-first local coding-agent runtime built as an interview-grade systems project.**
@@ -87,7 +87,7 @@ The goal for CodeAgent-Py is to preserve the important Agent CLI ideas while mak
 | `-p` print mode / SDK / RPC | ✅ Native | Thin CLI wrapper | ⚠️ CLI has `--print` flag, but SDK/RPC parity is not complete |
 | Declarative approval modes + command risk tiers | ❌ | ★ Net new in Agent CLI | ✅ Implemented via pure-function policy engine, `PolicyGateway`, and approval handlers |
 | MCP integration over stdio JSON-RPC | ❌ | ★ Net new in Agent CLI | ⚠️ Basic MCP extension exists; not yet a polished MCP ecosystem |
-| Eval / benchmark framework | ❌ | ★★ Strongest hiring signal in Agent CLI | ✅ YAML eval harness implemented; should grow into richer model × scenario matrices |
+| Eval / benchmark framework | ❌ | ★★ Strongest hiring signal in Agent CLI | ✅ YAML eval harness with richer scenarios, metrics, and trace export; model matrices remain future work |
 | Project profile + cross-session memory | ❌ | ★ Small but realistic addition | ⚠️ Project profile implemented; memory primitives exist; deeper memory use is future work |
 
 ### Honest Parity Assessment
@@ -136,7 +136,7 @@ This is intentional for the current interview scope: the Python version prioriti
 | File tools | ✅ | `read`, `write`, `edit`, `apply_patch`, `git_diff` |
 | Loop guards | ✅ | Tool-call limit, token budget, repeated failure guard, reward-hacking guard |
 | Context builder | ✅ | Loads project instructions and detected project profile; supports provider-backed token budgets |
-| Eval harness | ✅ | YAML scenarios with markdown / JSON reports |
+| Eval harness | ✅ | YAML scenarios, structured metrics, eval traces, and markdown / JSON reports |
 | MCP integration | ⚠️ | Basic extension exists; not a full server ecosystem |
 | Resume | ✅ | Linear resume reconstructs normalized messages from JSONL traces |
 | Streaming UI | ✅ | CLI `--stream` is implemented; richer TUI/IDE streaming remains future work |
@@ -472,6 +472,7 @@ CodeAgent-Py includes a deterministic YAML-based eval harness.
 ```bash
 uv run codeagent eval --benchmark simple_edit
 uv run codeagent eval --benchmark security
+uv run codeagent eval --benchmark test_driven_fix
 uv run codeagent eval --scenario-file path/to/scenario.yaml
 ```
 
@@ -479,6 +480,11 @@ Built-in benchmark groups:
 
 - `simple_edit` — basic code-editing tasks
 - `security` — path escape, `.env` write, symlink escape, dangerous command, reward-hacking attempt
+- `multi_file_refactor` — duplicated logic extraction across multiple files
+- `test_driven_fix` — failing-test repair while protecting tests from reward hacking
+- `instructions` — AGENTS.md instruction-following scenarios
+
+Eval reports include structured metrics for tool calls, token usage, expected files changed, forbidden files touched, post-run tests, and dangerous operation blocking. CLI eval runs save per-scenario JSONL traces under `.agent/eval-traces/<scenario>.jsonl` by default; use `--no-save-traces` to disable trace export.
 
 The eval harness is intentionally lightweight. Its purpose is to show how a coding agent can be regression-tested without depending only on manual demos.
 
@@ -537,7 +543,7 @@ uv run pytest tests/ -q
 Current expected result:
 
 ```text
-145 passed, 4 skipped
+152 passed, 4 skipped
 ```
 
 The skipped tests require a real API key and are intentionally not part of the offline suite.
@@ -554,6 +560,7 @@ The skipped tests require a real API key and are intentionally not part of the o
 | `codeagent ask --mode readonly` | Explore without writes |
 | `codeagent eval --benchmark simple_edit` | Run built-in evals |
 | `codeagent eval --benchmark security` | Run security scenarios |
+| `codeagent eval --benchmark all --no-save-traces` | Run all benchmarks without exporting eval traces |
 | `codeagent sessions` | List saved JSONL traces |
 | `codeagent sessions <id>` | Inspect one trace |
 | `codeagent resume <id> "..."` | Reconstruct messages from a trace and continue |
@@ -578,6 +585,7 @@ uv run pytest tests/unit/test_tool_safety.py -q
 uv run pytest tests/unit/test_trace.py -q
 uv run pytest tests/unit/test_context.py -q
 uv run pytest tests/unit/test_policy.py -q
+uv run pytest tests/unit/test_eval.py -q
 ```
 
 What the tests prove:
@@ -593,6 +601,7 @@ What the tests prove:
 - bash timeout behavior is covered
 - JSONL traces can be written and read back
 - JSONL traces can reconstruct messages for linear resume
+- eval scenarios load richer benchmarks and collect structured metrics
 - project instruction precedence works
 
 ---
@@ -694,24 +703,22 @@ A strong 5-minute demo:
 
 If continuing this project, the highest-value improvements are:
 
-1. **More eval scenarios**
-   - multi-file refactors
-   - failing-test repair
-   - dependency-change review
-   - prompt-injection attempts through files
-
-2. **Fork/tree resume**
+1. **Fork/tree resume**
    - branch from existing traces
    - preserve parent/child session relationships
 
-3. **MCP presets**
+2. **MCP presets**
    - GitHub / Linear starter configs
    - safer credential and confirmation defaults
 
-4. **Sandboxing**
+3. **Sandboxing**
    - run tools in containers
    - isolate network access
    - capture filesystem diffs
+
+4. **Parallel safe tools**
+   - run read-only tool calls concurrently
+   - keep mutating tools serialized
 
 ---
 

@@ -60,11 +60,16 @@ def eval(
     model: str = typer.Option("claude-sonnet-4-6", "--model", "-m", help="使用的模型"),
     output: str = typer.Option(None, "--output", "-o", help="导出报告路径"),
     format: str = typer.Option("markdown", "--format", help="报告格式: markdown/json"),
+    save_traces: bool = typer.Option(
+        True,
+        "--save-traces/--no-save-traces",
+        help="保存每个 eval 场景的 JSONL trace",
+    ),
 ):
     """运行评测基准测试"""
     from .commands.eval import run_eval
 
-    run_eval(benchmark, scenario_file, model, output, format)
+    run_eval(benchmark, scenario_file, model, output, format, save_traces)
 
 
 @app.command()

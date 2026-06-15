@@ -19,6 +19,7 @@ def run_eval(
     model: str,
     output: str | None,
     format: str,
+    save_traces: bool = True,
 ):
     """运行评测命令"""
     # 检查 API 密钥
@@ -71,7 +72,8 @@ def run_eval(
     # 运行评测
     console.print(f"\n[bold blue]Running evaluation with model:[/bold blue] {model}\n")
     
-    harness = EvalHarness(api_key=api_key)
+    trace_dir = Path(os.getcwd()) / ".agent" / "eval-traces"
+    harness = EvalHarness(api_key=api_key, save_traces=save_traces, trace_dir=trace_dir)
     report = asyncio.run(harness.run_benchmark(scenarios, model))
     
     # 打印报告

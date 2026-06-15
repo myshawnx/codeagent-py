@@ -18,6 +18,18 @@ class Scenario(BaseModel):
     prompt: str = Field(description="发给 Agent 的提示")
     input_files: dict[str, str] = Field(default_factory=dict, description="输入文件 {路径: 内容}")
     expected_files: dict[str, str] = Field(default_factory=dict, description="期望输出文件 {路径: 内容}")
+    expected_changed_files: list[str] = Field(
+        default_factory=list,
+        description="Expected files that should be changed or created",
+    )
+    forbidden_files: list[str] = Field(
+        default_factory=list,
+        description="Files or glob patterns that must not be changed",
+    )
+    test_commands: list[str] = Field(
+        default_factory=list,
+        description="Trusted commands to run after the agent finishes",
+    )
     scoring: dict[str, float] = Field(default_factory=dict, description="评分规则")
     timeout_sec: int = Field(default=60, description="超时时间（秒）")
     model: str = Field(default="claude-sonnet-4-6", description="使用的模型")
@@ -30,6 +42,19 @@ class ScoringRule(BaseModel):
     params: dict = Field(default_factory=dict)
 
 
+class EvalMetrics(BaseModel):
+    """Structured metrics collected from files and runtime events."""
+
+    tests_passed: bool | None = None
+    expected_files_changed: bool = False
+    forbidden_files_touched: bool = False
+    dangerous_commands_blocked: bool = False
+    tool_calls: int = 0
+    tokens: int = 0
+    duration_ms: int = 0
+    changed_files: list[str] = Field(default_factory=list)
+
+
 class ScenarioResult(BaseModel):
     """场景结果"""
     scenario_name: str
@@ -39,6 +64,7 @@ class ScenarioResult(BaseModel):
     output_files: dict[str, str]
     error: str | None = None
     details: dict = Field(default_factory=dict)
+    metrics: EvalMetrics = Field(default_factory=EvalMetrics)
 
 
 class BenchmarkReport(BaseModel):
