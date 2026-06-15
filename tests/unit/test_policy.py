@@ -3,8 +3,37 @@
 import pytest
 
 from codeagent.config.schema import ApprovalMode, CommandPolicy, PathPolicy, PolicyConfig, LimitsConfig
+from codeagent.policy.approval import (
+    ApprovalDecision,
+    AutoApprovalHandler,
+    DenyApprovalHandler,
+    RecordingApprovalHandler,
+)
 from codeagent.policy.engine import classify
+from codeagent.policy.gateway import PolicyGateway
 from codeagent.policy.types import ClassifyOptions, ToolCallEvent
+from codeagent.runtime.events import EventType
+
+
+class _FakeExtensionAPI:
+    def __init__(self):
+        self.entries = []
+        self.events = []
+
+    def register_tool(self, tool):
+        pass
+
+    def set_active_tools(self, names):
+        pass
+
+    def append_entry(self, entry_type, data):
+        self.entries.append({"type": entry_type, "data": data})
+
+    def emit_event(self, event_type, data):
+        self.events.append({"type": event_type, "data": data})
+
+    def send_message(self, content):
+        pass
 
 
 @pytest.fixture
@@ -187,3 +216,70 @@ class TestApprovalModes:
         event_allow = ToolCallEvent(tool_name="write", input={"file_path": "test.txt", "content": "x"})
         verdict = classify(event_allow, ApprovalMode.AUTO, strict_policy, classify_opts)
         assert verdict.kind == "allow"
+
+
+class TestPolicyGatewayApproval:
+    """PolicyGateway turns confirm verdicts into approval decisions."""
+
+    def test_confirm_denied_blocks_tool(self, strict_policy):
+        api = _FakeExtensionAPI()
+        gateway = PolicyGateway(
+            policy=strict_policy,
+            mode=ApprovalMode.WORKSPACE_WRITE,
+            repo_root="/home/user/project",
+            approval_handler=DenyApprovalHandler(),
+        )
+
+        result = gateway.on_tool_call(
+            api,
+            "write",
+            {"file_path": "package.json", "content": "{}"},
+        )
+
+        assert result is not None
+        assert result["block"] is True
+        assert "Approval denied" in result["reason"]
+        assert api.events[0]["type"] == EventType.APPROVAL_REQUESTED
+        assert api.events[1]["type"] == EventType.APPROVAL_DECISION
+        assert api.events[1]["data"]["approved"] is False
+
+    def test_confirm_approved_allows_tool(self, strict_policy):
+        api = _FakeExtensionAPI()
+        gateway = PolicyGateway(
+            policy=strict_policy,
+            mode=ApprovalMode.WORKSPACE_WRITE,
+            repo_root="/home/user/project",
+            approval_handler=AutoApprovalHandler(),
+        )
+
+        result = gateway.on_tool_call(
+            api,
+            "write",
+            {"file_path": "package.json", "content": "{}"},
+        )
+
+        assert result is None
+        assert api.events[1]["data"]["approved"] is True
+
+    def test_recording_approval_handler_captures_request(self, strict_policy):
+        api = _FakeExtensionAPI()
+        handler = RecordingApprovalHandler(
+            decisions=[ApprovalDecision(approved=True, reason="test approval")]
+        )
+        gateway = PolicyGateway(
+            policy=strict_policy,
+            mode=ApprovalMode.SUGGEST,
+            repo_root="/home/user/project",
+            approval_handler=handler,
+        )
+
+        result = gateway.on_tool_call(
+            api,
+            "write",
+            {"file_path": "src/app.py", "content": "x"},
+        )
+
+        assert result is None
+        assert len(handler.requests) == 1
+        assert handler.requests[0].tool_name == "write"
+        assert "suggest mode" in handler.requests[0].reason

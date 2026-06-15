@@ -9,6 +9,11 @@ from ...config.loader import load_agent_config
 from ...config.schema import ApprovalMode
 from ...loop.guards_ext import LoopGuardsExtension
 from ...loop.types import LoopGuardOptions
+from ...policy.approval import (
+    AutoApprovalHandler,
+    DenyApprovalHandler,
+    RichPromptApprovalHandler,
+)
 from ...policy.gateway import PolicyGateway
 from ...runtime.events import EventBus, EventType
 from ...runtime.session import AgentSession
@@ -41,11 +46,19 @@ def run_ask(prompt: str, mode: str, print_mode: bool, stream: bool = False):
         return
     
     # 创建扩展
+    approval_handler = (
+        AutoApprovalHandler()
+        if approval_mode == ApprovalMode.AUTO
+        else DenyApprovalHandler()
+        if print_mode
+        else RichPromptApprovalHandler()
+    )
     extensions = [
         PolicyGateway(
             policy=config.policy,
             mode=approval_mode,
             repo_root=cwd,
+            approval_handler=approval_handler,
         ),
         LoopGuardsExtension(
             options=LoopGuardOptions(

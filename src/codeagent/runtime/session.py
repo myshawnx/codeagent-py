@@ -40,6 +40,9 @@ class SessionAPI(ExtensionAPI):
     def append_entry(self, entry_type: str, data: dict) -> None:
         self.session.append_entry(entry_type, data)
 
+    def emit_event(self, event_type: EventType, data: dict) -> None:
+        self.session.events.emit(event_type, data)
+
     def send_message(self, content: str) -> None:
         # Reserved for future bidirectional extension messaging.
         pass

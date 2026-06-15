@@ -1,7 +1,7 @@
 # CodeAgent-Py
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-142%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-145%20passing-brightgreen.svg)](#testing)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 **CodeAgent-Py is a Python-first local coding-agent runtime built as an interview-grade systems project.**
@@ -48,7 +48,7 @@ It currently does not aim to provide:
 - hosted cloud sandboxes
 - background long-running task orchestration
 - polished real-time streaming UI beyond the current CLI stream output
-- full interactive permission prompts
+- full TUI / IDE-grade permission prompts
 - full MCP server marketplace integration
 - multi-agent orchestration
 - production auth, billing, telemetry, or rate limiting
@@ -85,7 +85,7 @@ The goal for CodeAgent-Py is to preserve the important Agent CLI ideas while mak
 | Read / write / edit / bash tools | ✅ Native | Reused and hardened through policy gateway | ✅ Implemented; additionally adds `apply_patch` and `git_diff` |
 | Session persistence / resume / fork | ✅ Native tree-shaped JSONL | Reused; `TaskView` projected from it | ✅ JSONL traces and linear resume implemented; fork/tree is future work |
 | `-p` print mode / SDK / RPC | ✅ Native | Thin CLI wrapper | ⚠️ CLI has `--print` flag, but SDK/RPC parity is not complete |
-| Declarative approval modes + command risk tiers | ❌ | ★ Net new in Agent CLI | ✅ Implemented via pure-function policy engine and `PolicyGateway`; interactive confirm UI is future work |
+| Declarative approval modes + command risk tiers | ❌ | ★ Net new in Agent CLI | ✅ Implemented via pure-function policy engine, `PolicyGateway`, and approval handlers |
 | MCP integration over stdio JSON-RPC | ❌ | ★ Net new in Agent CLI | ⚠️ Basic MCP extension exists; not yet a polished MCP ecosystem |
 | Eval / benchmark framework | ❌ | ★★ Strongest hiring signal in Agent CLI | ✅ YAML eval harness implemented; should grow into richer model × scenario matrices |
 | Project profile + cross-session memory | ❌ | ★ Small but realistic addition | ⚠️ Project profile implemented; memory primitives exist; deeper memory use is future work |
@@ -108,7 +108,7 @@ The biggest remaining parity gaps are:
 
 - tree/fork session model
 - SDK/RPC surface
-- fully interactive confirmation flow
+- richer TUI / IDE confirmation flows
 - richer MCP tool configuration
 - deeper cross-session memory integration
 
@@ -130,6 +130,7 @@ This is intentional for the current interview scope: the Python version prioriti
 | JSONL traces | ✅ | Saves sessions under `.agent/sessions/<session_id>.jsonl` |
 | Policy engine | ✅ | Pure-function classify layer for allow / confirm / deny decisions |
 | Approval modes | ✅ | `readonly`, `suggest`, `workspace-write`, `auto` |
+| Approval handlers | ✅ | Rich CLI prompt, auto approval, non-interactive deny, and recording handler |
 | Tool-level safety | ✅ | Blocks path traversal, absolute escapes, and symlink escapes |
 | Bash hardening | ✅ | Timeout, output truncation, exit status handling |
 | File tools | ✅ | `read`, `write`, `edit`, `apply_patch`, `git_diff` |
@@ -536,7 +537,7 @@ uv run pytest tests/ -q
 Current expected result:
 
 ```text
-142 passed, 4 skipped
+145 passed, 4 skipped
 ```
 
 The skipped tests require a real API key and are intentionally not part of the offline suite.
@@ -587,6 +588,7 @@ What the tests prove:
 - the agent loop can run offline through `MockProvider`
 - tool calls and tool results round-trip correctly
 - policy verdicts are emitted as events
+- approval requests and approval decisions are emitted as events
 - path traversal and symlink escape are blocked
 - bash timeout behavior is covered
 - JSONL traces can be written and read back
@@ -644,7 +646,7 @@ Because this is not a product clone. The code should be understandable in a code
 | Streaming UX | Provider-neutral streaming and CLI `--stream` implemented | Richer TUI/IDE progress, richer tool-use deltas |
 | Resume model | Linear resume implemented from JSONL traces | Fork/tree sessions and external process replay |
 | Token counting | Provider-level counting implemented for Anthropic and Mock; fallback estimates are marked | More providers and deeper budget integration across full conversation history |
-| Confirmation UI | `confirm` verdict exists, UI is minimal | Rich TUI approval prompt |
+| Confirmation UI | `confirm` verdicts route through approval handlers; local CLI uses Rich prompts, print mode denies non-interactively, and auto mode auto-approves | Richer TUI / IDE approval prompt |
 | MCP ecosystem | Basic integration | Prebuilt servers and credential handling |
 | Sandboxing | Workspace safety only | Container / OS-level sandbox |
 | Multi-agent | Not implemented | Subagent orchestration with scoped traces |
@@ -692,25 +694,21 @@ A strong 5-minute demo:
 
 If continuing this project, the highest-value improvements are:
 
-1. **Interactive confirmation UI**
-   - turn `confirm` verdicts into real user decisions
-   - use Rich prompts or a small TUI
-
-2. **More eval scenarios**
+1. **More eval scenarios**
    - multi-file refactors
    - failing-test repair
    - dependency-change review
    - prompt-injection attempts through files
 
-3. **Fork/tree resume**
+2. **Fork/tree resume**
    - branch from existing traces
    - preserve parent/child session relationships
 
-4. **MCP presets**
+3. **MCP presets**
    - GitHub / Linear starter configs
    - safer credential and confirmation defaults
 
-5. **Sandboxing**
+4. **Sandboxing**
    - run tools in containers
    - isolate network access
    - capture filesystem diffs

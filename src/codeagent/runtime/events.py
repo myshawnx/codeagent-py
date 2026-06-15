@@ -27,6 +27,8 @@ class EventType(str, Enum):
     MODEL_RESPONSE = "model_response"
     TOOL_CALL_REQUESTED = "tool_call_requested"
     POLICY_VERDICT = "policy_verdict"
+    APPROVAL_REQUESTED = "approval_requested"
+    APPROVAL_DECISION = "approval_decision"
     TOOL_START = "tool_start"
     TOOL_END = "tool_end"
     TURN_END = "turn_end"

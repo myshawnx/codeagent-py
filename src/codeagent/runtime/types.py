@@ -9,6 +9,8 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
+from .events import EventType
+
 # Re-export normalized provider types so existing imports keep working.
 from ..providers.types import (  # noqa: F401
     TextBlock,
@@ -45,5 +47,7 @@ class ExtensionAPI(Protocol):
     def set_active_tools(self, names: list[str]) -> None: ...
 
     def append_entry(self, entry_type: str, data: dict) -> None: ...
+
+    def emit_event(self, event_type: EventType, data: dict) -> None: ...
 
     def send_message(self, content: str) -> None: ...
