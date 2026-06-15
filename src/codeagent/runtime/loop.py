@@ -8,6 +8,7 @@ truth.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -301,10 +302,123 @@ class AgentLoop:
         self, response: ModelResponse, parent_id: str | None
     ) -> list[dict]:
         """Execute every tool-use block, returning normalized tool_result dicts."""
+        tool_uses = response.tool_uses()
+        if self._can_execute_in_parallel(tool_uses):
+            return await self._execute_parallel_tools(tool_uses, parent_id)
+
         tool_results: list[dict] = []
 
-        for block in response.tool_uses():
+        for block in tool_uses:
             tool_results.append(await self._execute_one(block, parent_id))
+
+        return tool_results
+
+    def _can_execute_in_parallel(self, tool_uses: list[ToolUseBlock]) -> bool:
+        """Return whether a batch contains only known read-only parallel tools."""
+        if len(tool_uses) < 2:
+            return False
+
+        for block in tool_uses:
+            tool = self.tools.get(block.name)
+            if tool is None:
+                return False
+            if not tool.parallel_safe or tool.mutates_workspace:
+                return False
+        return True
+
+    async def _execute_parallel_tools(
+        self,
+        tool_uses: list[ToolUseBlock],
+        parent_id: str | None,
+    ) -> list[dict]:
+        """Execute a safe read-only tool batch concurrently with ordered results."""
+        prepared: list[dict[str, Any]] = []
+
+        for block in tool_uses:
+            tool_use_id = block.id
+            tool_name = block.name
+            tool_input = block.input
+
+            call_event = self.events.emit(
+                EventType.TOOL_CALL_REQUESTED,
+                {"tool": tool_name, "input": tool_input, "tool_use_id": tool_use_id},
+                parent_id=parent_id,
+            )
+
+            verdict = self.extension_manager.fire_tool_call(tool_name, tool_input)
+            blocked = bool(verdict and verdict.get("block"))
+            self.events.emit(
+                EventType.POLICY_VERDICT,
+                {
+                    "tool": tool_name,
+                    "verdict": "deny" if blocked else "allow",
+                    "reason": verdict.get("reason") if verdict else None,
+                },
+                parent_id=call_event.id,
+            )
+
+            if blocked:
+                reason = verdict.get("reason", "No reason given")
+                prepared.append({
+                    "block": block,
+                    "result": self._error_result(tool_use_id, f"Tool blocked: {reason}"),
+                })
+                continue
+
+            tool = self.tools.get(tool_name)
+            if tool is None:
+                prepared.append({
+                    "block": block,
+                    "result": self._error_result(
+                        tool_use_id,
+                        f"Tool not found: {tool_name}",
+                    ),
+                })
+                continue
+
+            self.events.emit(
+                EventType.TOOL_START,
+                {"tool": tool_name, "tool_use_id": tool_use_id},
+                parent_id=call_event.id,
+            )
+            prepared.append({
+                "block": block,
+                "call_event": call_event,
+                "task": asyncio.create_task(self._run_tool(tool, tool_input)),
+            })
+
+        tasks = [item["task"] for item in prepared if "task" in item]
+        if tasks:
+            await asyncio.gather(*tasks)
+
+        tool_results: list[dict] = []
+        for item in prepared:
+            block = item["block"]
+            if "result" in item:
+                tool_results.append(item["result"])
+                continue
+
+            is_error, result, result_str = item["task"].result()
+            self.extension_manager.fire_tool_result(block.name, result, is_error)
+            self.events.emit(
+                EventType.TOOL_END,
+                {
+                    "tool": block.name,
+                    "tool_use_id": block.id,
+                    "is_error": is_error,
+                    "result": result_str[:500],
+                },
+                parent_id=item["call_event"].id,
+            )
+            if is_error:
+                tool_results.append(self._error_result(block.id, result_str))
+            else:
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result_str,
+                    "is_error": False,
+                })
 
         return tool_results
 
@@ -346,40 +460,35 @@ class AgentLoop:
             parent_id=call_event.id,
         )
 
+        is_error, result, result_str = await self._run_tool(tool, tool_input)
+        self.extension_manager.fire_tool_result(tool_name, result, is_error)
+        self.events.emit(
+            EventType.TOOL_END,
+            {
+                "tool": tool_name,
+                "tool_use_id": tool_use_id,
+                "is_error": is_error,
+                "result": result_str[:500],
+            },
+            parent_id=call_event.id,
+        )
+        if is_error:
+            return self._error_result(tool_use_id, result_str)
+        return {
+            "type": "tool_result",
+            "tool_use_id": tool_use_id,
+            "content": result_str,
+            "is_error": False,
+        }
+
+    async def _run_tool(self, tool: Any, tool_input: dict) -> tuple[bool, Any, str]:
+        """Execute a tool and normalize success/error values."""
         try:
             result = await tool.execute(**tool_input)
-            result_str = str(result)
-            self.extension_manager.fire_tool_result(tool_name, result, False)
-            self.events.emit(
-                EventType.TOOL_END,
-                {
-                    "tool": tool_name,
-                    "tool_use_id": tool_use_id,
-                    "is_error": False,
-                    "result": result_str[:500],
-                },
-                parent_id=call_event.id,
-            )
-            return {
-                "type": "tool_result",
-                "tool_use_id": tool_use_id,
-                "content": result_str,
-                "is_error": False,
-            }
+            return False, result, str(result)
         except Exception as exc:  # noqa: BLE001 - surface as tool error to model
             error_msg = f"Tool execution failed: {exc}"
-            self.extension_manager.fire_tool_result(tool_name, error_msg, True)
-            self.events.emit(
-                EventType.TOOL_END,
-                {
-                    "tool": tool_name,
-                    "tool_use_id": tool_use_id,
-                    "is_error": True,
-                    "result": error_msg,
-                },
-                parent_id=call_event.id,
-            )
-            return self._error_result(tool_use_id, error_msg)
+            return True, error_msg, error_msg
 
     @staticmethod
     def _error_result(tool_use_id: str, message: str) -> dict:

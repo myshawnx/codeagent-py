@@ -275,6 +275,7 @@ def create_builtin_tools(cwd: str, timeout_ms: int = 120000) -> list[Tool]:
                 "required": ["file_path"],
             },
             execute=read_wrapper,
+            parallel_safe=True,
         ),
         Tool(
             name="write",
@@ -288,6 +289,7 @@ def create_builtin_tools(cwd: str, timeout_ms: int = 120000) -> list[Tool]:
                 "required": ["file_path", "content"],
             },
             execute=write_wrapper,
+            mutates_workspace=True,
         ),
         Tool(
             name="edit",
@@ -305,6 +307,7 @@ def create_builtin_tools(cwd: str, timeout_ms: int = 120000) -> list[Tool]:
                 "required": ["file_path", "old_text", "new_text"],
             },
             execute=edit_wrapper,
+            mutates_workspace=True,
         ),
         Tool(
             name="apply_patch",
@@ -318,6 +321,7 @@ def create_builtin_tools(cwd: str, timeout_ms: int = 120000) -> list[Tool]:
                 "required": ["file_path", "patch"],
             },
             execute=patch_wrapper,
+            mutates_workspace=True,
         ),
         Tool(
             name="git_diff",
@@ -332,6 +336,7 @@ def create_builtin_tools(cwd: str, timeout_ms: int = 120000) -> list[Tool]:
                 },
             },
             execute=git_diff_wrapper,
+            parallel_safe=True,
         ),
         Tool(
             name="bash",
@@ -344,5 +349,6 @@ def create_builtin_tools(cwd: str, timeout_ms: int = 120000) -> list[Tool]:
                 "required": ["command"],
             },
             execute=bash_wrapper,
+            mutates_workspace=True,
         ),
     ]

@@ -1,17 +1,22 @@
 """Tests for the runtime event model and offline agent loop."""
 
+import asyncio
+
 import pytest
 
 from codeagent.providers import (
     MockProvider,
+    ModelResponse,
     ModelStreamEvent,
     ProviderError,
+    ToolUseBlock,
     text_response,
     tool_use_response,
 )
 from codeagent.runtime.events import Event, EventBus, EventType
 from codeagent.runtime.session import AgentSession
 from codeagent.runtime.tools import create_builtin_tools
+from codeagent.runtime.types import Tool
 
 
 class TestEventBus:
@@ -149,6 +154,107 @@ class TestOfflineAgentLoop:
         assert not tool_end.payload["is_error"]
 
     @pytest.mark.asyncio
+    async def test_parallel_safe_tools_execute_concurrently_in_order(self, temp_repo):
+        running = 0
+        max_running = 0
+
+        async def slow_read(value: str) -> str:
+            nonlocal running, max_running
+            running += 1
+            max_running = max(max_running, running)
+            await asyncio.sleep(0.01)
+            running -= 1
+            return value
+
+        provider = MockProvider(
+            responses=[
+                ModelResponse(
+                    content=[
+                        ToolUseBlock(id="t1", name="slow_read", input={"value": "first"}),
+                        ToolUseBlock(id="t2", name="slow_read", input={"value": "second"}),
+                    ],
+                    stop_reason="tool_use",
+                    model="mock",
+                ),
+                text_response("done"),
+            ]
+        )
+        bus = EventBus()
+        session = AgentSession(cwd=temp_repo, provider=provider, event_bus=bus)
+        session.register_tool(
+            Tool(
+                name="slow_read",
+                description="Slow read-only tool",
+                parameters={
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": ["value"],
+                },
+                execute=slow_read,
+                parallel_safe=True,
+            )
+        )
+        session.set_active_tools(["slow_read"])
+
+        result = await session.run("Run both reads")
+
+        assert result == "done"
+        assert max_running == 2
+        tool_results = provider.calls[1].messages[-1].content
+        assert [item["tool_use_id"] for item in tool_results] == ["t1", "t2"]
+        assert [item["content"] for item in tool_results] == ["first", "second"]
+        assert [event.payload["tool_use_id"] for event in bus.by_type(EventType.TOOL_END)] == [
+            "t1",
+            "t2",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_mutating_tools_remain_serial(self, temp_repo):
+        running = 0
+        max_running = 0
+
+        async def mutate(value: str) -> str:
+            nonlocal running, max_running
+            running += 1
+            max_running = max(max_running, running)
+            await asyncio.sleep(0.01)
+            running -= 1
+            return value
+
+        provider = MockProvider(
+            responses=[
+                ModelResponse(
+                    content=[
+                        ToolUseBlock(id="t1", name="mutate", input={"value": "first"}),
+                        ToolUseBlock(id="t2", name="mutate", input={"value": "second"}),
+                    ],
+                    stop_reason="tool_use",
+                    model="mock",
+                ),
+                text_response("done"),
+            ]
+        )
+        session = AgentSession(cwd=temp_repo, provider=provider)
+        session.register_tool(
+            Tool(
+                name="mutate",
+                description="Mutating tool",
+                parameters={
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": ["value"],
+                },
+                execute=mutate,
+                mutates_workspace=True,
+            )
+        )
+        session.set_active_tools(["mutate"])
+
+        await session.run("Run both mutations")
+
+        assert max_running == 1
+
+    @pytest.mark.asyncio
     async def test_tool_not_found_error(self, temp_repo):
         provider = MockProvider(
             responses=[
@@ -247,6 +353,16 @@ class TestOfflineAgentLoop:
 
         # Check the request had the system prompt.
         assert provider.calls[0].system == "Custom system prompt"
+
+    def test_builtin_tool_parallel_metadata(self, temp_repo):
+        tools = {tool.name: tool for tool in create_builtin_tools(temp_repo)}
+
+        assert tools["read"].parallel_safe is True
+        assert tools["git_diff"].parallel_safe is True
+        assert tools["write"].mutates_workspace is True
+        assert tools["edit"].mutates_workspace is True
+        assert tools["apply_patch"].mutates_workspace is True
+        assert tools["bash"].mutates_workspace is True
 
     @pytest.mark.asyncio
     async def test_streaming_text_response(self, temp_repo):

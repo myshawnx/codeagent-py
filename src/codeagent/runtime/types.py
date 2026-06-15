@@ -37,6 +37,8 @@ class Tool(BaseModel):
     description: str
     parameters: dict[str, Any]
     execute: Any  # Callable[..., Awaitable[str]]
+    parallel_safe: bool = False
+    mutates_workspace: bool = False
 
 
 class ExtensionAPI(Protocol):
