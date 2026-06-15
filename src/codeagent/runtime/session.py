@@ -7,7 +7,7 @@ from typing import Any
 
 from ..context import build_system_prompt, load_project_instructions
 from ..context.profile import detect_profile
-from ..providers import ModelProvider, create_anthropic_provider
+from ..providers import ModelMessage, ModelProvider, create_anthropic_provider
 from .events import Event, EventBus, EventType
 from .extensions import Extension, ExtensionAPI, ExtensionManager
 from .loop import AgentLoop
@@ -59,6 +59,7 @@ class AgentSession:
         system: str | None = None,
         timeout_sec: float = 120.0,
         load_context: bool = True,
+        initial_messages: list[ModelMessage] | None = None,
     ):
         self.cwd = cwd
         self.model = model
@@ -86,6 +87,7 @@ class AgentSession:
 
         # Custom entries (legacy trajectory log; events are the modern path)
         self.custom_entries: list[dict] = []
+        self.initial_messages = initial_messages or []
 
         # Extensions
         self.extensions = extensions or []
@@ -129,6 +131,7 @@ class AgentSession:
             event_bus=self.events,
             system=self.system,
         )
+        loop.messages = [m.model_copy(deep=True) for m in self.initial_messages]
 
         try:
             result = await loop.run(prompt)
@@ -170,6 +173,7 @@ class AgentSession:
             event_bus=self.events,
             system=self.system,
         )
+        loop.messages = [m.model_copy(deep=True) for m in self.initial_messages]
 
         try:
             async for event in loop.run_stream(prompt):

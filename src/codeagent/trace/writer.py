@@ -71,6 +71,22 @@ def get_trace_dir(cwd: str) -> Path:
     return Path(cwd) / ".agent" / "sessions"
 
 
+def find_session_trace(cwd: str, session_id: str) -> Path | None:
+    """Find a trace by exact session id or unique prefix."""
+    trace_dir = get_trace_dir(cwd)
+    exact = trace_dir / f"{session_id}.jsonl"
+    if exact.exists():
+        return exact
+
+    if not trace_dir.exists():
+        return None
+
+    matches = sorted(trace_dir.glob(f"{session_id}*.jsonl"))
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
 def save_session_trace(cwd: str, session_id: str, events: list[Event]) -> Path:
     """Save a list of events to a session trace file."""
     trace_dir = get_trace_dir(cwd)

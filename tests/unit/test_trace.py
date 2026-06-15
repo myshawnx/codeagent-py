@@ -5,15 +5,18 @@ from pathlib import Path
 
 import pytest
 
-from codeagent.providers import MockProvider, text_response
+from codeagent.providers import MockProvider, text_response, tool_use_response
 from codeagent.runtime.events import Event, EventBus, EventType
 from codeagent.runtime.session import AgentSession
 from codeagent.trace import (
+    TraceReconstructionError,
     TraceWriter,
     attach_trace_writer,
+    find_session_trace,
     get_trace_dir,
     list_sessions,
     read_trace,
+    reconstruct_messages,
     save_session_trace,
 )
 
@@ -83,6 +86,142 @@ class TestSessionTracePersistence:
     def test_list_sessions_empty(self, temp_repo):
         sessions = list_sessions(temp_repo)
         assert sessions == []
+
+    def test_find_session_trace_by_prefix(self, temp_repo):
+        bus = EventBus(session_id="abcdef123456")
+        bus.emit(EventType.SESSION_START, {})
+        save_session_trace(temp_repo, bus.session_id, bus.events)
+
+        trace_path = find_session_trace(temp_repo, "abcdef")
+
+        assert trace_path is not None
+        assert trace_path.name == "abcdef123456.jsonl"
+
+
+class TestTraceReconstruction:
+    """Reconstruct normalized messages for linear resume."""
+
+    def test_reconstruct_simple_text_turn(self):
+        bus = EventBus(session_id="resume-simple")
+        bus.emit(
+            EventType.MODEL_REQUEST,
+            {
+                "messages": [
+                    {"role": "user", "content": [{"type": "text", "text": "hello"}]}
+                ]
+            },
+        )
+        bus.emit(
+            EventType.MODEL_RESPONSE,
+            {
+                "content": [{"type": "text", "text": "hi"}],
+            },
+        )
+
+        messages = reconstruct_messages(bus.events)
+
+        assert [m.role for m in messages] == ["user", "assistant"]
+        assert messages[0].content[0]["text"] == "hello"
+        assert messages[1].content[0]["text"] == "hi"
+
+    def test_reconstruct_tool_use_and_tool_result(self):
+        tool_turn = tool_use_response("t1", "read", {"file_path": "a.py"})
+        bus = EventBus(session_id="resume-tools")
+        bus.emit(
+            EventType.MODEL_REQUEST,
+            {
+                "messages": [
+                    {"role": "user", "content": [{"type": "text", "text": "read a.py"}]}
+                ]
+            },
+        )
+        bus.emit(
+            EventType.MODEL_RESPONSE,
+            {
+                "content": [b.model_dump(mode="json") for b in tool_turn.content],
+            },
+        )
+        bus.emit(
+            EventType.MODEL_REQUEST,
+            {
+                "messages": [
+                    {"role": "user", "content": [{"type": "text", "text": "read a.py"}]},
+                    {
+                        "role": "assistant",
+                        "content": [b.model_dump(mode="json") for b in tool_turn.content],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "t1",
+                                "content": "print('ok')",
+                                "is_error": False,
+                            }
+                        ],
+                    },
+                ]
+            },
+        )
+        bus.emit(
+            EventType.MODEL_RESPONSE,
+            {
+                "content": [{"type": "text", "text": "done"}],
+            },
+        )
+
+        messages = reconstruct_messages(bus.events)
+
+        assert [m.role for m in messages] == ["user", "assistant", "user", "assistant"]
+        assert messages[1].content[0]["type"] == "tool_use"
+        assert messages[2].content[0]["type"] == "tool_result"
+        assert messages[3].content[0]["text"] == "done"
+
+    def test_reconstruct_corrupted_trace_fails_safely(self):
+        bus = EventBus(session_id="bad-resume")
+        bus.emit(EventType.MODEL_REQUEST, {"num_messages": 1})
+
+        with pytest.raises(TraceReconstructionError):
+            reconstruct_messages(bus.events)
+
+    @pytest.mark.asyncio
+    async def test_resume_session_sends_history_to_provider(self, temp_repo):
+        initial_messages = reconstruct_messages(
+            [
+                Event(
+                    type=EventType.MODEL_REQUEST,
+                    session_id="s1",
+                    payload={
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [{"type": "text", "text": "original prompt"}],
+                            }
+                        ]
+                    },
+                ),
+                Event(
+                    type=EventType.MODEL_RESPONSE,
+                    session_id="s1",
+                    payload={"content": [{"type": "text", "text": "original answer"}]},
+                ),
+            ]
+        )
+        provider = MockProvider(responses=[text_response("continued")])
+        session = AgentSession(
+            cwd=temp_repo,
+            provider=provider,
+            initial_messages=initial_messages,
+        )
+
+        await session.run("continue")
+
+        sent = provider.calls[0].messages
+        assert [m.role for m in sent] == ["user", "assistant", "user"]
+        assert sent[0].content[0]["text"] == "original prompt"
+        assert sent[1].content[0]["text"] == "original answer"
+        assert sent[2].content[0]["text"] == "continue"
 
 
 class TestTraceIntegrationWithSession:

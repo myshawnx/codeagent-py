@@ -1,7 +1,7 @@
 # CodeAgent-Py
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-137%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-142%20passing-brightgreen.svg)](#testing)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 **CodeAgent-Py is a Python-first local coding-agent runtime built as an interview-grade systems project.**
@@ -83,7 +83,7 @@ The goal for CodeAgent-Py is to preserve the important Agent CLI ideas while mak
 |---|---:|---|---|
 | Agent loop, tool calling, state | ✅ Native | Reused | ✅ Implemented as a custom Python `AgentLoop` |
 | Read / write / edit / bash tools | ✅ Native | Reused and hardened through policy gateway | ✅ Implemented; additionally adds `apply_patch` and `git_diff` |
-| Session persistence / resume / fork | ✅ Native tree-shaped JSONL | Reused; `TaskView` projected from it | ⚠️ JSONL event traces implemented; full resume/fork is future work |
+| Session persistence / resume / fork | ✅ Native tree-shaped JSONL | Reused; `TaskView` projected from it | ✅ JSONL traces and linear resume implemented; fork/tree is future work |
 | `-p` print mode / SDK / RPC | ✅ Native | Thin CLI wrapper | ⚠️ CLI has `--print` flag, but SDK/RPC parity is not complete |
 | Declarative approval modes + command risk tiers | ❌ | ★ Net new in Agent CLI | ✅ Implemented via pure-function policy engine and `PolicyGateway`; interactive confirm UI is future work |
 | MCP integration over stdio JSON-RPC | ❌ | ★ Net new in Agent CLI | ⚠️ Basic MCP extension exists; not yet a polished MCP ecosystem |
@@ -106,7 +106,6 @@ The strongest parity areas are:
 
 The biggest remaining parity gaps are:
 
-- real session resume
 - tree/fork session model
 - SDK/RPC surface
 - fully interactive confirmation flow
@@ -138,7 +137,7 @@ This is intentional for the current interview scope: the Python version prioriti
 | Context builder | ✅ | Loads project instructions and detected project profile; supports provider-backed token budgets |
 | Eval harness | ✅ | YAML scenarios with markdown / JSON reports |
 | MCP integration | ⚠️ | Basic extension exists; not a full server ecosystem |
-| Resume | ⚠️ | Trace foundation exists; full resume command is future work |
+| Resume | ✅ | Linear resume reconstructs normalized messages from JSONL traces |
 | Streaming UI | ✅ | CLI `--stream` is implemented; richer TUI/IDE streaming remains future work |
 
 ---
@@ -525,6 +524,7 @@ uv run codeagent ask "Explain this codebase" --mode readonly --stream
 ```bash
 uv run codeagent sessions
 uv run codeagent sessions <session-id>
+uv run codeagent resume <session-id> "continue from here"
 ```
 
 ### Run tests
@@ -536,7 +536,7 @@ uv run pytest tests/ -q
 Current expected result:
 
 ```text
-137 passed, 4 skipped
+142 passed, 4 skipped
 ```
 
 The skipped tests require a real API key and are intentionally not part of the offline suite.
@@ -555,6 +555,7 @@ The skipped tests require a real API key and are intentionally not part of the o
 | `codeagent eval --benchmark security` | Run security scenarios |
 | `codeagent sessions` | List saved JSONL traces |
 | `codeagent sessions <id>` | Inspect one trace |
+| `codeagent resume <id> "..."` | Reconstruct messages from a trace and continue |
 | `codeagent mcp ...` | Manage basic MCP config |
 
 ---
@@ -589,6 +590,7 @@ What the tests prove:
 - path traversal and symlink escape are blocked
 - bash timeout behavior is covered
 - JSONL traces can be written and read back
+- JSONL traces can reconstruct messages for linear resume
 - project instruction precedence works
 
 ---
@@ -627,7 +629,7 @@ A hosted sandbox is better for production isolation, but a local tool runtime ma
 
 ### Why JSONL traces?
 
-JSONL is simple, append-friendly, diffable, and easy to inspect. It is a good foundation for later resume, replay, or UI features.
+JSONL is simple, append-friendly, diffable, and easy to inspect. Current traces include enough normalized model request / response payload to reconstruct conversation messages for linear resume; fork/tree sessions remain future work.
 
 ### Why keep the project small?
 
@@ -640,7 +642,7 @@ Because this is not a product clone. The code should be understandable in a code
 | Limitation | Current state | Better future version |
 |---|---|---|
 | Streaming UX | Provider-neutral streaming and CLI `--stream` implemented | Richer TUI/IDE progress, richer tool-use deltas |
-| Resume | Trace foundation only | Reconstruct messages from trace and continue |
+| Resume model | Linear resume implemented from JSONL traces | Fork/tree sessions and external process replay |
 | Token counting | Provider-level counting implemented for Anthropic and Mock; fallback estimates are marked | More providers and deeper budget integration across full conversation history |
 | Confirmation UI | `confirm` verdict exists, UI is minimal | Rich TUI approval prompt |
 | MCP ecosystem | Basic integration | Prebuilt servers and credential handling |
@@ -690,19 +692,19 @@ A strong 5-minute demo:
 
 If continuing this project, the highest-value improvements are:
 
-1. **Real resume**
-   - rebuild conversation state from JSONL traces
-   - continue from a previous session
-
-2. **Interactive confirmation UI**
+1. **Interactive confirmation UI**
    - turn `confirm` verdicts into real user decisions
    - use Rich prompts or a small TUI
 
-3. **More eval scenarios**
+2. **More eval scenarios**
    - multi-file refactors
    - failing-test repair
    - dependency-change review
    - prompt-injection attempts through files
+
+3. **Fork/tree resume**
+   - branch from existing traces
+   - preserve parent/child session relationships
 
 4. **MCP presets**
    - GitHub / Linear starter configs

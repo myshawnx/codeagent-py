@@ -77,5 +77,19 @@ def sessions(
     run_sessions(session_id)
 
 
+@app.command()
+def resume(
+    session_id: str = typer.Argument(..., help="Session ID or unique prefix"),
+    prompt: str | None = typer.Argument(None, help="Optional continuation prompt"),
+    mode: str = typer.Option("workspace-write", help="审批模式: readonly/suggest/workspace-write/auto"),
+    print_mode: bool = typer.Option(False, "-p", "--print", help="只打印输出，不交互"),
+    stream: bool = typer.Option(False, "--stream/--no-stream", help="实时输出模型文本流"),
+):
+    """Resume a previous JSONL session trace."""
+    from .commands.resume import run_resume
+
+    run_resume(session_id, prompt, mode, print_mode, stream)
+
+
 if __name__ == "__main__":
     app()

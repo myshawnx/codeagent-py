@@ -266,6 +266,8 @@ class AgentLoop:
                 "model": request.model,
                 "num_messages": len(request.messages),
                 "num_tools": len(request.tools),
+                "messages": [m.model_dump(mode="json") for m in request.messages],
+                "system": request.system,
             },
             parent_id=parent_id,
         )
@@ -278,6 +280,7 @@ class AgentLoop:
             {
                 "stop_reason": response.stop_reason,
                 "text": response.text()[:500],
+                "content": [b.model_dump(mode="json") for b in response.content],
                 "tool_uses": [t.name for t in response.tool_uses()],
                 "usage": response.usage.model_dump(),
             },
