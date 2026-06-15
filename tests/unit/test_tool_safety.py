@@ -8,6 +8,7 @@ import pytest
 from codeagent.providers import MockProvider, text_response, tool_use_response
 from codeagent.runtime.events import EventBus
 from codeagent.runtime.session import AgentSession
+from codeagent.runtime.tools import ReadToolCache, create_builtin_tools
 from codeagent.util import PathSecurityError, resolve_in_workspace
 
 
@@ -118,6 +119,31 @@ class TestFileToolHardening:
         assert tool_result["is_error"] is True
         assert "appears 2 times" in tool_result["content"]
 
+    @pytest.mark.asyncio
+    async def test_read_cache_hits_and_invalidates_on_file_stat_change(self, temp_repo):
+        test_file = Path(temp_repo) / "cached.txt"
+        test_file.write_text("alpha")
+        cache = ReadToolCache(temp_repo)
+
+        assert await cache.read("cached.txt") == "alpha"
+        assert await cache.read("cached.txt") == "alpha"
+        assert cache.hits == 1
+        assert cache.misses == 1
+
+        test_file.write_text("beta!!")
+        assert await cache.read("cached.txt") == "beta!!"
+        assert cache.misses == 2
+
+    @pytest.mark.asyncio
+    async def test_write_tool_invalidates_read_cache_for_same_size_content(self, temp_repo):
+        test_file = Path(temp_repo) / "same.txt"
+        test_file.write_text("one")
+        tools = {tool.name: tool for tool in create_builtin_tools(temp_repo)}
+
+        assert await tools["read"].execute(file_path="same.txt") == "one"
+        assert await tools["write"].execute(file_path="same.txt", content="two")
+        assert await tools["read"].execute(file_path="same.txt") == "two"
+
 
 class TestBashToolHardening:
     """Bash tool must enforce timeout and truncate output."""
@@ -133,7 +159,6 @@ class TestBashToolHardening:
         # Use a very short timeout.
         session = AgentSession(cwd=temp_repo, provider=provider, event_bus=EventBus(), timeout_sec=0.5)
         # Override tool timeout via re-registration (hacky but works for test).
-        from codeagent.runtime.tools import create_builtin_tools
         session.tools = {t.name: t for t in create_builtin_tools(temp_repo, timeout_ms=100)}
         session.set_active_tools(list(session.tools.keys()))
 

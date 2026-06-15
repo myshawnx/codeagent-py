@@ -1,7 +1,7 @@
 # CodeAgent-Py
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-160%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-162%20passing-brightgreen.svg)](#testing)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 **CodeAgent-Py is a Python-first local coding-agent runtime built as an interview-grade systems project.**
@@ -127,6 +127,7 @@ This is intentional for the current interview scope: the Python version prioriti
 | Streaming responses | ✅ | Provider-neutral stream events, runtime events, and CLI `--stream` output |
 | Tool calling | ✅ | Normalized `tool_use` and `tool_result` blocks |
 | Parallel safe tools | ✅ | Read-only batches such as `read` / `git_diff` can run concurrently with ordered results |
+| Tool result cache | ✅ | `read` results are cached with mtime / size validation and invalidated after writes |
 | Runtime events | ✅ | Emits structured events for debugging, evals, and traces |
 | JSONL traces | ✅ | Saves sessions under `.agent/sessions/<session_id>.jsonl` |
 | Policy engine | ✅ | Pure-function classify layer for allow / confirm / deny decisions |
@@ -544,7 +545,7 @@ uv run pytest tests/ -q
 Current expected result:
 
 ```text
-160 passed, 4 skipped
+162 passed, 4 skipped
 ```
 
 The skipped tests require a real API key and are intentionally not part of the offline suite.
@@ -716,9 +717,9 @@ If continuing this project, the highest-value improvements are:
    - isolate network access
    - capture filesystem diffs
 
-3. **Tool result cache**
-   - cache safe file reads with mtime / size invalidation
-   - clear affected cache entries after writes
+3. **Telemetry exporters**
+   - split event sinks from runtime collection
+   - add console / JSONL / future OpenTelemetry sinks
 
 4. **MCP hardening**
    - server health checks

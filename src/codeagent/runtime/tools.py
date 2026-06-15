@@ -17,8 +17,43 @@ class ToolExecutionError(RuntimeError):
     """Raised when a tool fails in a user-visible way."""
 
 
-async def read_file(file_path: str, cwd: str) -> str:
-    """Read a file with safety checks and size limits."""
+class ReadToolCache:
+    """Small mtime/size-validated cache for read tool results."""
+
+    def __init__(self, cwd: str):
+        self.cwd = cwd
+        self._entries: dict[Path, tuple[int, int, str]] = {}
+        self.hits = 0
+        self.misses = 0
+
+    async def read(self, file_path: str) -> str:
+        resolved = resolve_read_target(self.cwd, file_path)
+        stat = resolved.stat()
+        entry = self._entries.get(resolved)
+        if entry and entry[0] == stat.st_mtime_ns and entry[1] == stat.st_size:
+            self.hits += 1
+            return entry[2]
+
+        self.misses += 1
+        content = read_resolved_file(resolved, file_path)
+        self._entries[resolved] = (stat.st_mtime_ns, stat.st_size, content)
+        return content
+
+    def invalidate(self, file_path: str | None = None) -> None:
+        """Invalidate one cached path or clear the whole cache."""
+        if file_path is None:
+            self._entries.clear()
+            return
+
+        try:
+            resolved = resolve_in_workspace(self.cwd, file_path)
+        except PathSecurityError:
+            return
+        self._entries.pop(resolved, None)
+
+
+def resolve_read_target(cwd: str, file_path: str) -> Path:
+    """Resolve and validate a readable file path."""
     try:
         resolved = resolve_in_workspace(cwd, file_path)
     except PathSecurityError as exc:
@@ -35,12 +70,20 @@ async def read_file(file_path: str, cwd: str) -> str:
             f"File too large: {file_path} ({size} bytes, max {MAX_FILE_SIZE})"
         )
 
+    return resolved
+
+
+def read_resolved_file(resolved: Path, file_path: str) -> str:
+    """Read a validated file path."""
     try:
-        content = resolved.read_text(encoding="utf-8", errors="replace")
+        return resolved.read_text(encoding="utf-8", errors="replace")
     except Exception as exc:  # noqa: BLE001
         raise ToolExecutionError(f"Failed to read {file_path}: {exc}") from exc
 
-    return content
+
+async def read_file(file_path: str, cwd: str) -> str:
+    """Read a file with safety checks and size limits."""
+    return read_resolved_file(resolve_read_target(cwd, file_path), file_path)
 
 
 async def write_file(file_path: str, content: str, cwd: str) -> str:
@@ -244,24 +287,37 @@ async def run_bash(command: str, cwd: str, timeout_ms: int = 120000) -> str:
 
 def create_builtin_tools(cwd: str, timeout_ms: int = 120000) -> list[Tool]:
     """Create the builtin tool set with hardened safety checks."""
+    read_cache = ReadToolCache(cwd)
 
     async def read_wrapper(file_path: str) -> str:
-        return await read_file(file_path, cwd)
+        return await read_cache.read(file_path)
 
     async def write_wrapper(file_path: str, content: str) -> str:
-        return await write_file(file_path, content, cwd)
+        try:
+            return await write_file(file_path, content, cwd)
+        finally:
+            read_cache.invalidate(file_path)
 
     async def edit_wrapper(file_path: str, old_text: str, new_text: str) -> str:
-        return await edit_file(file_path, old_text, new_text, cwd)
+        try:
+            return await edit_file(file_path, old_text, new_text, cwd)
+        finally:
+            read_cache.invalidate(file_path)
 
     async def patch_wrapper(file_path: str, patch: str) -> str:
-        return await apply_patch(file_path, patch, cwd)
+        try:
+            return await apply_patch(file_path, patch, cwd)
+        finally:
+            read_cache.invalidate(file_path)
 
     async def git_diff_wrapper(file_path: str | None = None) -> str:
         return await git_diff(cwd, file_path)
 
     async def bash_wrapper(command: str) -> str:
-        return await run_bash(command, cwd, timeout_ms)
+        try:
+            return await run_bash(command, cwd, timeout_ms)
+        finally:
+            read_cache.invalidate()
 
     return [
         Tool(
