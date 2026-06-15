@@ -1,3 +1,21 @@
 """MCP (Model Context Protocol) 集成"""
 
-# P2 阶段 MCP 客户端实现
+from .presets import (
+    MCPConfig,
+    MCPServerConfig,
+    add_preset,
+    list_presets,
+    load_mcp_config,
+    remove_server,
+    save_mcp_config,
+)
+
+__all__ = [
+    "MCPConfig",
+    "MCPServerConfig",
+    "add_preset",
+    "list_presets",
+    "load_mcp_config",
+    "remove_server",
+    "save_mcp_config",
+]

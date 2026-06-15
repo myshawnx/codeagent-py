@@ -3,17 +3,18 @@
 from ..runtime.extensions import Extension, ExtensionAPI
 from ..runtime.types import Tool
 from .client import MCPClient, MCPToolAdapter
+from .presets import MCPServerConfig
 
 
 class MCPExtension(Extension):
     """MCP 工具扩展"""
     
-    def __init__(self, mcp_servers: dict[str, list[str]]):
+    def __init__(self, mcp_servers: dict[str, list[str] | dict | MCPServerConfig]):
         """
-        mcp_servers: {name: command_args}
+        mcp_servers: {name: command_args | MCPServerConfig}
         例如: {"filesystem": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."]}
         """
-        self.mcp_servers = mcp_servers
+        self.mcp_servers = normalize_server_configs(mcp_servers)
         self.clients: dict[str, MCPClient] = {}
         self.adapters: dict[str, MCPToolAdapter] = {}
     
@@ -32,9 +33,9 @@ class MCPExtension(Extension):
     
     async def _start_servers(self, api: ExtensionAPI) -> None:
         """启动 MCP 服务器"""
-        for name, command in self.mcp_servers.items():
+        for name, config in self.mcp_servers.items():
             try:
-                client = MCPClient(command)
+                client = MCPClient(config.command, env=config.env)
                 await client.start()
                 
                 self.clients[name] = client
@@ -57,6 +58,7 @@ class MCPExtension(Extension):
                 
                 api.append_entry("mcp-server-started", {
                     "name": name,
+                    "source": config.source,
                     "tools_count": len(tools),
                 })
                 
@@ -82,3 +84,18 @@ class MCPExtension(Extension):
         """关闭 MCP 服务器"""
         for client in self.clients.values():
             await client.close()
+
+
+def normalize_server_configs(
+    mcp_servers: dict[str, list[str] | dict | MCPServerConfig],
+) -> dict[str, MCPServerConfig]:
+    """Normalize legacy and structured MCP server config values."""
+    normalized = {}
+    for name, config in mcp_servers.items():
+        if isinstance(config, MCPServerConfig):
+            normalized[name] = config
+        elif isinstance(config, list):
+            normalized[name] = MCPServerConfig(command=config)
+        else:
+            normalized[name] = MCPServerConfig.model_validate(config)
+    return normalized

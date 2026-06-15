@@ -2,14 +2,16 @@
 
 import asyncio
 import json
+import os
 from typing import Any
 
 
 class MCPClient:
     """MCP stdio 客户端"""
     
-    def __init__(self, command: list[str]):
+    def __init__(self, command: list[str], env: dict[str, str] | None = None):
         self.command = command
+        self.env = env or {}
         self.process: asyncio.subprocess.Process | None = None
         self.request_id = 0
     
@@ -20,6 +22,7 @@ class MCPClient:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=build_process_env(self.env),
         )
     
     async def call(self, method: str, params: dict[str, Any] | None = None) -> dict:
@@ -79,3 +82,24 @@ class MCPToolAdapter:
             return result.get("content", [{}])[0].get("text", "")
         
         return wrapper
+
+
+def build_process_env(config_env: dict[str, str]) -> dict[str, str]:
+    """Merge MCP config env with the process environment.
+
+    Values like ``${GITHUB_TOKEN}`` are resolved from the local environment and
+    omitted if the variable is not set. This keeps secrets out of .agent/mcp.json.
+    """
+    env = os.environ.copy()
+    for key, value in config_env.items():
+        resolved = resolve_env_value(value)
+        if resolved is not None:
+            env[key] = resolved
+    return env
+
+
+def resolve_env_value(value: str) -> str | None:
+    """Resolve a literal or ${VAR_NAME} environment placeholder."""
+    if value.startswith("${") and value.endswith("}"):
+        return os.getenv(value[2:-1])
+    return value

@@ -1,7 +1,7 @@
 # CodeAgent-Py
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-152%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-157%20passing-brightgreen.svg)](#testing)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 **CodeAgent-Py is a Python-first local coding-agent runtime built as an interview-grade systems project.**
@@ -86,7 +86,7 @@ The goal for CodeAgent-Py is to preserve the important Agent CLI ideas while mak
 | Session persistence / resume / fork | ✅ Native tree-shaped JSONL | Reused; `TaskView` projected from it | ✅ JSONL traces and linear resume implemented; fork/tree is future work |
 | `-p` print mode / SDK / RPC | ✅ Native | Thin CLI wrapper | ⚠️ CLI has `--print` flag, but SDK/RPC parity is not complete |
 | Declarative approval modes + command risk tiers | ❌ | ★ Net new in Agent CLI | ✅ Implemented via pure-function policy engine, `PolicyGateway`, and approval handlers |
-| MCP integration over stdio JSON-RPC | ❌ | ★ Net new in Agent CLI | ⚠️ Basic MCP extension exists; not yet a polished MCP ecosystem |
+| MCP integration over stdio JSON-RPC | ❌ | ★ Net new in Agent CLI | ⚠️ Stdio MCP extension plus filesystem/GitHub presets; not yet a marketplace |
 | Eval / benchmark framework | ❌ | ★★ Strongest hiring signal in Agent CLI | ✅ YAML eval harness with richer scenarios, metrics, and trace export; model matrices remain future work |
 | Project profile + cross-session memory | ❌ | ★ Small but realistic addition | ⚠️ Project profile implemented; memory primitives exist; deeper memory use is future work |
 
@@ -109,7 +109,7 @@ The biggest remaining parity gaps are:
 - tree/fork session model
 - SDK/RPC surface
 - richer TUI / IDE confirmation flows
-- richer MCP tool configuration
+- full MCP marketplace / server lifecycle
 - deeper cross-session memory integration
 
 This is intentional for the current interview scope: the Python version prioritizes **runtime clarity, safety hardening, provider abstraction, and tests** before rebuilding every product-level feature from Agent CLI.
@@ -137,7 +137,7 @@ This is intentional for the current interview scope: the Python version prioriti
 | Loop guards | ✅ | Tool-call limit, token budget, repeated failure guard, reward-hacking guard |
 | Context builder | ✅ | Loads project instructions and detected project profile; supports provider-backed token budgets |
 | Eval harness | ✅ | YAML scenarios, structured metrics, eval traces, and markdown / JSON reports |
-| MCP integration | ⚠️ | Basic extension exists; not a full server ecosystem |
+| MCP integration | ⚠️ | Stdio extension, `.agent/mcp.json`, filesystem/GitHub presets, and env-based credentials |
 | Resume | ✅ | Linear resume reconstructs normalized messages from JSONL traces |
 | Streaming UI | ✅ | CLI `--stream` is implemented; richer TUI/IDE streaming remains future work |
 
@@ -543,7 +543,7 @@ uv run pytest tests/ -q
 Current expected result:
 
 ```text
-152 passed, 4 skipped
+157 passed, 4 skipped
 ```
 
 The skipped tests require a real API key and are intentionally not part of the offline suite.
@@ -564,7 +564,10 @@ The skipped tests require a real API key and are intentionally not part of the o
 | `codeagent sessions` | List saved JSONL traces |
 | `codeagent sessions <id>` | Inspect one trace |
 | `codeagent resume <id> "..."` | Reconstruct messages from a trace and continue |
-| `codeagent mcp ...` | Manage basic MCP config |
+| `codeagent mcp list` | List configured MCP servers |
+| `codeagent mcp presets` | Show built-in MCP presets |
+| `codeagent mcp add filesystem` | Add the filesystem MCP preset |
+| `codeagent mcp add github` | Add the GitHub MCP preset using environment credentials |
 
 ---
 
@@ -617,7 +620,7 @@ src/codeagent/
 ├── context/            # Project profile detection and system prompt builder
 ├── trace/              # JSONL event trace persistence
 ├── eval/               # YAML eval harness and benchmarks
-├── mcp/                # Basic MCP integration
+├── mcp/                # Stdio MCP integration and preset config helpers
 ├── util/               # Workspace path safety helpers
 └── cli/                # Typer CLI commands
 ```
@@ -656,7 +659,7 @@ Because this is not a product clone. The code should be understandable in a code
 | Resume model | Linear resume implemented from JSONL traces | Fork/tree sessions and external process replay |
 | Token counting | Provider-level counting implemented for Anthropic and Mock; fallback estimates are marked | More providers and deeper budget integration across full conversation history |
 | Confirmation UI | `confirm` verdicts route through approval handlers; local CLI uses Rich prompts, print mode denies non-interactively, and auto mode auto-approves | Richer TUI / IDE approval prompt |
-| MCP ecosystem | Basic integration | Prebuilt servers and credential handling |
+| MCP ecosystem | Filesystem/GitHub presets configure stdio servers with env-based credential placeholders | Broader curated presets, server health checks, and richer credential UX |
 | Sandboxing | Workspace safety only | Container / OS-level sandbox |
 | Multi-agent | Not implemented | Subagent orchestration with scoped traces |
 | Production telemetry | JSONL local traces | OpenTelemetry / metrics backend |
@@ -707,18 +710,18 @@ If continuing this project, the highest-value improvements are:
    - branch from existing traces
    - preserve parent/child session relationships
 
-2. **MCP presets**
-   - GitHub / Linear starter configs
-   - safer credential and confirmation defaults
-
-3. **Sandboxing**
+2. **Sandboxing**
    - run tools in containers
    - isolate network access
    - capture filesystem diffs
 
-4. **Parallel safe tools**
+3. **Parallel safe tools**
    - run read-only tool calls concurrently
    - keep mutating tools serialized
+
+4. **MCP hardening**
+   - server health checks
+   - richer preset validation
 
 ---
 

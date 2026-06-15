@@ -9,6 +9,8 @@ from ...config.loader import load_agent_config
 from ...config.schema import ApprovalMode
 from ...loop.guards_ext import LoopGuardsExtension
 from ...loop.types import LoopGuardOptions
+from ...mcp.extension import MCPExtension
+from ...mcp.presets import load_mcp_config
 from ...policy.approval import (
     AutoApprovalHandler,
     DenyApprovalHandler,
@@ -89,6 +91,9 @@ def run_resume(
             ),
         ),
     ]
+    mcp_config = load_mcp_config(cwd)
+    if mcp_config.servers:
+        extensions.append(MCPExtension(mcp_config.servers))
 
     event_bus = EventBus()
     session = AgentSession(
