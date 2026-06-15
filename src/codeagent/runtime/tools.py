@@ -1,6 +1,7 @@
 """Builtin tool implementations with hardened safety checks."""
 
-import asyncio
+import os
+import signal
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -115,35 +116,26 @@ async def apply_patch(file_path: str, patch: str, cwd: str) -> str:
     if not resolved.exists():
         raise ToolExecutionError(f"File not found: {file_path}")
 
-    # Write patch to a temp file and use `patch` command.
-    import tempfile
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False) as tmp:
-        tmp.write(patch)
-        tmp_path = tmp.name
-
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "patch",
-            str(resolved),
-            tmp_path,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = subprocess.run(
+            ["patch", "--batch", "--forward", str(resolved)],
+            input=patch,
+            text=True,
+            capture_output=True,
             cwd=cwd,
+            timeout=10,
+            check=False,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
-        Path(tmp_path).unlink(missing_ok=True)
 
         if proc.returncode != 0:
-            error_output = stderr.decode("utf-8", errors="replace")
-            raise ToolExecutionError(f"Patch failed: {error_output}")
+            raise ToolExecutionError(f"Patch failed: {proc.stderr}")
 
         return f"Applied patch to {file_path}"
-    except asyncio.TimeoutError as exc:
-        Path(tmp_path).unlink(missing_ok=True)
+    except subprocess.TimeoutExpired as exc:
         raise ToolExecutionError("Patch command timed out") from exc
+    except ToolExecutionError:
+        raise
     except Exception as exc:  # noqa: BLE001
-        Path(tmp_path).unlink(missing_ok=True)
         raise ToolExecutionError(f"Patch execution failed: {exc}") from exc
 
 
@@ -154,33 +146,37 @@ async def git_diff(cwd: str, file_path: str | None = None) -> str:
         cwd: Workspace root.
         file_path: Optional specific file to diff (relative to cwd).
     """
-    args = ["git", "diff"]
+    args = ["git", "--no-pager", "diff", "--no-ext-diff"]
     if file_path:
         try:
             resolved = resolve_in_workspace(cwd, file_path)
-            args.append(str(resolved))
+            relative_path = resolved.relative_to(Path(cwd).resolve())
+            args.extend(["--", str(relative_path)])
         except PathSecurityError as exc:
             raise ToolExecutionError(f"Path security violation: {exc}") from exc
 
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = subprocess.run(
+            args,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
             cwd=cwd,
+            timeout=10,
+            check=False,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
 
         if proc.returncode != 0:
-            error_output = stderr.decode("utf-8", errors="replace")
-            raise ToolExecutionError(f"git diff failed: {error_output}")
+            raise ToolExecutionError(f"git diff failed: {proc.stderr}")
 
-        output = stdout.decode("utf-8", errors="replace")
+        output = proc.stdout
         if len(output) > MAX_OUTPUT_SIZE:
             output = output[:MAX_OUTPUT_SIZE] + "\n... (truncated)"
         return output if output else "(no changes)"
-    except asyncio.TimeoutError as exc:
+    except subprocess.TimeoutExpired as exc:
         raise ToolExecutionError("git diff timed out") from exc
+    except ToolExecutionError:
+        raise
     except Exception as exc:  # noqa: BLE001
         raise ToolExecutionError(f"git diff failed: {exc}") from exc
 
@@ -198,21 +194,20 @@ async def run_bash(command: str, cwd: str, timeout_ms: int = 120000) -> str:
     start = time.time()
 
     try:
-        proc = await asyncio.create_subprocess_shell(
+        proc = subprocess.Popen(
             command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            shell=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             cwd=cwd,
+            text=True,
+            start_new_session=True,
         )
 
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout_sec
-            )
+            stdout, stderr = proc.communicate(timeout=timeout_sec)
             duration_ms = int((time.time() - start) * 1000)
-
-            stdout = stdout_bytes.decode("utf-8", errors="replace")
-            stderr = stderr_bytes.decode("utf-8", errors="replace")
 
             # Truncate very large output.
             if len(stdout) > MAX_OUTPUT_SIZE:
@@ -228,9 +223,14 @@ async def run_bash(command: str, cwd: str, timeout_ms: int = 120000) -> str:
             # Success: return stdout only for backward compat.
             return stdout
 
-        except asyncio.TimeoutError as exc:
-            proc.kill()
-            await proc.wait()
+        except subprocess.TimeoutExpired as exc:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except (AttributeError, PermissionError):
+                proc.kill()
+            proc.communicate()
             duration_ms = int((time.time() - start) * 1000)
             raise ToolExecutionError(
                 f"Command timed out after {timeout_ms}ms: {command}"
@@ -296,7 +296,10 @@ def create_builtin_tools(cwd: str, timeout_ms: int = 120000) -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "file_path": {"type": "string", "description": "Path to the file"},
-                    "old_text": {"type": "string", "description": "Text to replace (must be unique)"},
+                    "old_text": {
+                        "type": "string",
+                        "description": "Text to replace (must be unique)",
+                    },
                     "new_text": {"type": "string", "description": "Replacement text"},
                 },
                 "required": ["file_path", "old_text", "new_text"],

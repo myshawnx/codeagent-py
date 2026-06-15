@@ -10,14 +10,14 @@ from ...config.schema import ApprovalMode
 from ...loop.guards_ext import LoopGuardsExtension
 from ...loop.types import LoopGuardOptions
 from ...policy.gateway import PolicyGateway
-from ...runtime.events import EventBus
+from ...runtime.events import EventBus, EventType
 from ...runtime.session import AgentSession
 from ...trace import attach_trace_writer, get_trace_dir
 
 console = Console()
 
 
-def run_ask(prompt: str, mode: str, print_mode: bool):
+def run_ask(prompt: str, mode: str, print_mode: bool, stream: bool = False):
     """执行 ask 命令"""
     cwd = os.getcwd()
     
@@ -77,11 +77,25 @@ def run_ask(prompt: str, mode: str, print_mode: bool):
     console.print(f"[dim]Prompt:[/dim] {prompt}\n")
     
     try:
-        result = asyncio.run(session.run(prompt))
-        console.print("\n[bold green]✓ Response:[/bold green]")
-        console.print(result)
+        if stream:
+            console.print("\n[bold green]✓ Response:[/bold green]")
+            asyncio.run(_print_stream(session, prompt))
+            console.print()
+        else:
+            result = asyncio.run(session.run(prompt))
+            console.print("\n[bold green]✓ Response:[/bold green]")
+            console.print(result)
     except Exception as e:
         console.print(f"\n[red]Error:[/red] {e}")
     finally:
         trace_writer.close()
         console.print(f"\n[dim]Trace saved: {trace_path.name}[/dim]")
+
+
+async def _print_stream(session: AgentSession, prompt: str) -> None:
+    async for event in session.run_stream(prompt):
+        if event.type == EventType.MODEL_TEXT_DELTA:
+            console.print(event.payload.get("text", ""), end="")
+        elif event.type == EventType.TOOL_CALL_REQUESTED:
+            tool = event.payload.get("tool", "tool")
+            console.print(f"\n[dim]→ {tool}[/dim]")

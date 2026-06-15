@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 from ..context import build_system_prompt, load_project_instructions
 from ..context.profile import detect_profile
 from ..providers import ModelProvider, create_anthropic_provider
-from .events import EventBus, EventType
+from .events import Event, EventBus, EventType
 from .extensions import Extension, ExtensionAPI, ExtensionManager
 from .loop import AgentLoop
 from .tools import create_builtin_tools
@@ -142,6 +143,54 @@ class AgentSession:
         except Exception as exc:  # noqa: BLE001
             self.events.emit(EventType.ERROR, {"stage": "session", "error": str(exc)})
             self.events.emit(EventType.SESSION_END, {"error": str(exc)})
+            raise
+        finally:
+            self.extension_manager.fire_session_end()
+
+    async def run_stream(self, prompt: str) -> AsyncIterator[Event]:
+        """Run the agent and yield runtime events as they occur."""
+        event = self.events.emit(
+            EventType.SESSION_START,
+            {"cwd": self.cwd, "model": self.model, "prompt": prompt},
+        )
+        yield event
+        self.extension_manager.fire_session_start()
+
+        active_tools = {
+            name: self.tools[name]
+            for name in self.active_tool_names
+            if name in self.tools
+        }
+
+        loop = AgentLoop(
+            provider=self.provider,
+            model=self.model,
+            tools=active_tools,
+            extension_manager=self.extension_manager,
+            event_bus=self.events,
+            system=self.system,
+        )
+
+        try:
+            async for event in loop.run_stream(prompt):
+                yield event
+            result = loop.last_result or ""
+            event = self.events.emit(
+                EventType.SESSION_END,
+                {
+                    "result": result[:500],
+                    "total_tokens": loop.total_usage.total_tokens,
+                },
+            )
+            yield event
+        except Exception as exc:  # noqa: BLE001
+            event = self.events.emit(
+                EventType.ERROR,
+                {"stage": "session", "error": str(exc)},
+            )
+            yield event
+            event = self.events.emit(EventType.SESSION_END, {"error": str(exc)})
+            yield event
             raise
         finally:
             self.extension_manager.fire_session_end()

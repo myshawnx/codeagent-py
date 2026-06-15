@@ -9,9 +9,10 @@ loop testable offline (via :class:`MockProvider`) and portable across vendors.
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator, Iterator
 from typing import Protocol, runtime_checkable
 
-from .types import ModelRequest, ModelResponse, TokenCount
+from .types import ModelRequest, ModelResponse, ModelStreamEvent, TextBlock, TokenCount
 
 
 class ProviderError(RuntimeError):
@@ -78,6 +79,40 @@ async def count_tokens_with_fallback(
         return estimate_model_request_tokens(request, provider=provider_name)
 
 
+def stream_events_from_response(response: ModelResponse) -> Iterator[ModelStreamEvent]:
+    """Convert a complete response into normalized stream events."""
+    yield ModelStreamEvent(
+        type="message_start",
+        payload={"model": response.model},
+    )
+    for block in response.content:
+        if isinstance(block, TextBlock) and block.text:
+            yield ModelStreamEvent(
+                type="text_delta",
+                payload={"text": block.text},
+            )
+    yield ModelStreamEvent(
+        type="message_stop",
+        payload={"response": response.model_dump(mode="json")},
+    )
+
+
+async def stream_with_fallback(
+    provider: object,
+    request: ModelRequest,
+) -> AsyncIterator[ModelStreamEvent]:
+    """Stream from provider when possible, otherwise synthesize from generate()."""
+    streamer = getattr(provider, "stream", None)
+    if streamer is not None:
+        async for event in streamer(request):
+            yield event
+        return
+
+    response = await provider.generate(request)
+    for event in stream_events_from_response(response):
+        yield event
+
+
 @runtime_checkable
 class ModelProvider(Protocol):
     """Async provider interface.
@@ -95,4 +130,8 @@ class ModelProvider(Protocol):
 
     async def count_tokens(self, request: ModelRequest) -> TokenCount:
         """Count input tokens for ``request`` using provider-native semantics."""
+        ...
+
+    def stream(self, request: ModelRequest) -> AsyncIterator[ModelStreamEvent]:
+        """Stream normalized model events for ``request``."""
         ...

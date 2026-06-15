@@ -11,6 +11,8 @@ from .base import (
     TokenCountingNotSupported,
     count_tokens_with_fallback,
     estimate_model_request_tokens,
+    stream_events_from_response,
+    stream_with_fallback,
 )
 from .mock_provider import MockProvider, text_response, tool_use_response
 from .types import (
@@ -18,6 +20,7 @@ from .types import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    ModelStreamEvent,
     StopReason,
     TextBlock,
     ToolResultBlock,
@@ -34,6 +37,8 @@ __all__ = [
     "TokenCountingNotSupported",
     "count_tokens_with_fallback",
     "estimate_model_request_tokens",
+    "stream_events_from_response",
+    "stream_with_fallback",
     "MockProvider",
     "text_response",
     "tool_use_response",
@@ -41,6 +46,7 @@ __all__ = [
     "ModelMessage",
     "ModelRequest",
     "ModelResponse",
+    "ModelStreamEvent",
     "StopReason",
     "TextBlock",
     "ToolResultBlock",

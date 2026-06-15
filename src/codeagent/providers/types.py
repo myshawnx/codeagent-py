@@ -115,6 +115,23 @@ class TokenCount(BaseModel):
     provider: str = "unknown"
 
 
+StreamEventType = Literal[
+    "message_start",
+    "text_delta",
+    "tool_use_delta",
+    "message_delta",
+    "message_stop",
+    "error",
+]
+
+
+class ModelStreamEvent(BaseModel):
+    """Provider-neutral streaming event."""
+
+    type: StreamEventType
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
 # Normalized stop reasons across providers.
 StopReason = Literal["end_turn", "tool_use", "max_tokens", "stop_sequence", "error"]
 

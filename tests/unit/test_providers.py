@@ -9,6 +9,7 @@ from codeagent.providers import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    ModelStreamEvent,
     ProviderError,
     TextBlock,
     TokenCount,
@@ -47,6 +48,27 @@ class _FakeMessage:
         self.stop_reason = stop_reason
         self.usage = usage
         self.model = model
+
+
+class _FakeStream:
+    def __init__(self, chunks, final_message):
+        self._chunks = chunks
+        self._final_message = final_message
+        self.text_stream = self._iter_text()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return None
+
+    async def _iter_text(self):
+        for chunk in self._chunks:
+            await asyncio.sleep(0)
+            yield chunk
+
+    async def get_final_message(self):
+        return self._final_message
 
 
 class TestAnthropicNormalization:
@@ -186,6 +208,46 @@ class TestMockProvider:
         assert count.input_tokens > 0
         assert count.estimated is True
         assert count.provider == "mock"
+
+    @pytest.mark.asyncio
+    async def test_stream_events_scripted(self):
+        scripted = [
+            ModelStreamEvent(type="message_start", payload={"model": "mock"}),
+            ModelStreamEvent(type="text_delta", payload={"text": "hello"}),
+            ModelStreamEvent(
+                type="message_stop",
+                payload={"response": text_response("hello").model_dump(mode="json")},
+            ),
+        ]
+        provider = MockProvider(
+            responses=[text_response("unused")],
+            stream_events=[scripted],
+        )
+        req = ModelRequest(model="m", messages=[ModelMessage(role="user", content=[])])
+
+        events = [event async for event in provider.stream(req)]
+
+        assert [event.type for event in events] == [
+            "message_start",
+            "text_delta",
+            "message_stop",
+        ]
+        assert events[1].payload["text"] == "hello"
+        assert len(provider.calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_stream_falls_back_to_scripted_response(self):
+        provider = MockProvider(responses=[text_response("hello")])
+        req = ModelRequest(model="m", messages=[ModelMessage(role="user", content=[])])
+
+        events = [event async for event in provider.stream(req)]
+
+        assert [event.type for event in events] == [
+            "message_start",
+            "text_delta",
+            "message_stop",
+        ]
+        assert events[1].payload["text"] == "hello"
 
 
 class TestTokenCountingFallback:
@@ -339,3 +401,44 @@ class TestAnthropicProviderAsync:
         req = ModelRequest(model="m", messages=[ModelMessage(role="user", content=[])])
         with pytest.raises(ProviderError, match="token count failed"):
             await provider.count_tokens(req)
+
+    @pytest.mark.asyncio
+    async def test_stream_yields_text_deltas_and_final_response(self):
+        captured = {}
+        final = _FakeMessage(
+            content=[_FakeBlock(type="text", text="hello world")],
+            stop_reason="end_turn",
+            usage=_FakeUsage(10, 2),
+        )
+
+        class _CaptureMessages:
+            def stream(self, **kw):
+                captured.update(kw)
+                return _FakeStream(["hello ", "world"], final)
+
+        class _CaptureClient:
+            messages = _CaptureMessages()
+
+        provider = AnthropicProvider(client=_CaptureClient())
+        req = ModelRequest(
+            model="claude-x",
+            messages=[ModelMessage(role="user", content=[{"type": "text", "text": "hi"}])],
+            system="be helpful",
+            max_tokens=99,
+            temperature=0.2,
+        )
+
+        events = [event async for event in provider.stream(req)]
+
+        assert [event.type for event in events] == [
+            "message_start",
+            "text_delta",
+            "text_delta",
+            "message_stop",
+        ]
+        assert events[1].payload["text"] == "hello "
+        assert events[2].payload["text"] == "world"
+        assert events[-1].payload["response"]["usage"]["input_tokens"] == 10
+        assert captured["model"] == "claude-x"
+        assert captured["max_tokens"] == 99
+        assert captured["temperature"] == 0.2

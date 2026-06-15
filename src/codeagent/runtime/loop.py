@@ -8,6 +8,7 @@ truth.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 from ..providers import (
@@ -20,8 +21,9 @@ from ..providers import (
     ToolSchema,
     ToolUseBlock,
     Usage,
+    stream_with_fallback,
 )
-from .events import EventBus, EventType
+from .events import Event, EventBus, EventType
 from .extensions import ExtensionManager
 
 
@@ -47,6 +49,7 @@ class AgentLoop:
         self.max_turns = max_turns
         self.messages: list[ModelMessage] = []
         self.total_usage = Usage()
+        self.last_result: str | None = None
 
     async def run(self, prompt: str) -> str:
         """Run the agent loop and return the final assistant text."""
@@ -95,11 +98,150 @@ class AgentLoop:
                 {"turn": turn, "stop_reason": response.stop_reason},
                 parent_id=turn_event.id,
             )
-            return response.text()
+            self.last_result = response.text()
+            return self.last_result
 
-        return "Maximum turns reached"
+        self.last_result = "Maximum turns reached"
+        return self.last_result
+
+    async def run_stream(self, prompt: str) -> AsyncIterator[Event]:
+        """Run the agent loop and yield runtime events as they occur."""
+        self.messages.append(
+            ModelMessage(role="user", content=[{"type": "text", "text": prompt}])
+        )
+
+        for turn in range(self.max_turns):
+            turn_event = self.events.emit(EventType.TURN_START, {"turn": turn})
+            yield turn_event
+
+            try:
+                response: ModelResponse | None = None
+                async for event, maybe_response in self._call_provider_stream(
+                    parent_id=turn_event.id
+                ):
+                    yield event
+                    if maybe_response is not None:
+                        response = maybe_response
+                if response is None:
+                    raise ProviderError("Provider stream ended without final response")
+            except ProviderError as exc:
+                event = self.events.emit(
+                    EventType.ERROR,
+                    {"stage": "model_request", "error": str(exc)},
+                    parent_id=turn_event.id,
+                )
+                yield event
+                raise
+
+            self._record_usage(response, parent_id=turn_event.id)
+
+            assistant_content = [b.model_dump() for b in response.content]
+            self.messages.append(
+                ModelMessage(role="assistant", content=assistant_content)
+            )
+
+            if response.stop_reason == "tool_use":
+                event_start = len(self.events.events)
+                tool_results = await self._execute_tools(
+                    response, parent_id=turn_event.id
+                )
+                for event in self.events.events[event_start:]:
+                    yield event
+                self.messages.append(ModelMessage(role="user", content=tool_results))
+                event = self.events.emit(
+                    EventType.TURN_END,
+                    {"turn": turn, "stop_reason": response.stop_reason},
+                    parent_id=turn_event.id,
+                )
+                yield event
+                continue
+
+            event = self.events.emit(
+                EventType.TURN_END,
+                {"turn": turn, "stop_reason": response.stop_reason},
+                parent_id=turn_event.id,
+            )
+            yield event
+            self.last_result = response.text()
+            return
+
+        self.last_result = "Maximum turns reached"
 
     async def _call_provider(self, parent_id: str | None) -> ModelResponse:
+        request = self._build_model_request()
+        self._emit_model_request(request, parent_id=parent_id)
+        response = await self.provider.generate(request)
+        self._emit_model_response(response, parent_id=parent_id)
+        return response
+
+    async def _call_provider_stream(
+        self, parent_id: str | None
+    ) -> AsyncIterator[tuple[Event, ModelResponse | None]]:
+        request = self._build_model_request()
+        yield self._emit_model_request(request, parent_id=parent_id), None
+
+        text_parts: list[str] = []
+        final_response: ModelResponse | None = None
+        async for stream_event in stream_with_fallback(self.provider, request):
+            if stream_event.type == "message_start":
+                event = self.events.emit(
+                    EventType.MODEL_STREAM_START,
+                    {
+                        "model": stream_event.payload.get("model", self.model),
+                    },
+                    parent_id=parent_id,
+                )
+                yield event, None
+            elif stream_event.type == "text_delta":
+                text = str(stream_event.payload.get("text", ""))
+                text_parts.append(text)
+                event = self.events.emit(
+                    EventType.MODEL_TEXT_DELTA,
+                    {"text": text},
+                    parent_id=parent_id,
+                )
+                yield event, None
+            elif stream_event.type == "message_stop":
+                response_payload = stream_event.payload.get("response")
+                if isinstance(response_payload, ModelResponse):
+                    final_response = response_payload
+                elif response_payload:
+                    final_response = ModelResponse.model_validate(response_payload)
+                else:
+                    final_response = ModelResponse(
+                        content=[TextBlock(text="".join(text_parts))],
+                        stop_reason="end_turn",
+                        model=self.model,
+                    )
+
+                stream_end = self.events.emit(
+                    EventType.MODEL_STREAM_END,
+                    {
+                        "stop_reason": final_response.stop_reason,
+                        "usage": final_response.usage.model_dump(),
+                    },
+                    parent_id=parent_id,
+                )
+                yield stream_end, None
+
+                response_event = self._emit_model_response(
+                    final_response, parent_id=parent_id
+                )
+                yield response_event, final_response
+            elif stream_event.type == "error":
+                message = str(stream_event.payload.get("error", "provider stream error"))
+                event = self.events.emit(
+                    EventType.ERROR,
+                    {"stage": "model_stream", "error": message},
+                    parent_id=parent_id,
+                )
+                yield event, None
+                raise ProviderError(message)
+
+        if final_response is None:
+            raise ProviderError("Provider stream ended without message_stop")
+
+    def _build_model_request(self) -> ModelRequest:
         tools_schema = [
             ToolSchema(
                 name=tool.name,
@@ -108,23 +250,30 @@ class AgentLoop:
             )
             for tool in self.tools.values()
         ]
-        request = ModelRequest(
+        return ModelRequest(
             model=self.model,
             messages=self.messages,
             tools=tools_schema,
             system=self.system,
         )
-        self.events.emit(
+
+    def _emit_model_request(
+        self, request: ModelRequest, parent_id: str | None
+    ) -> Event:
+        return self.events.emit(
             EventType.MODEL_REQUEST,
             {
-                "model": self.model,
-                "num_messages": len(self.messages),
-                "num_tools": len(tools_schema),
+                "model": request.model,
+                "num_messages": len(request.messages),
+                "num_tools": len(request.tools),
             },
             parent_id=parent_id,
         )
-        response = await self.provider.generate(request)
-        self.events.emit(
+
+    def _emit_model_response(
+        self, response: ModelResponse, parent_id: str | None
+    ) -> Event:
+        return self.events.emit(
             EventType.MODEL_RESPONSE,
             {
                 "stop_reason": response.stop_reason,
@@ -134,7 +283,6 @@ class AgentLoop:
             },
             parent_id=parent_id,
         )
-        return response
 
     def _record_usage(self, response: ModelResponse, parent_id: str | None) -> None:
         self.total_usage = self.total_usage + response.usage

@@ -24,11 +24,12 @@ def ask(
     prompt: str = typer.Argument(..., help="问题或任务描述"),
     mode: str = typer.Option("workspace-write", help="审批模式: readonly/suggest/workspace-write/auto"),
     print_mode: bool = typer.Option(False, "-p", "--print", help="只打印输出，不交互"),
+    stream: bool = typer.Option(False, "--stream/--no-stream", help="实时输出模型文本流"),
 ):
     """执行 AI 助手任务"""
     from .commands.ask import run_ask
     
-    run_ask(prompt, mode, print_mode)
+    run_ask(prompt, mode, print_mode, stream)
 
 
 @app.command()

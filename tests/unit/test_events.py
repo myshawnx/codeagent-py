@@ -2,7 +2,13 @@
 
 import pytest
 
-from codeagent.providers import MockProvider, text_response, tool_use_response
+from codeagent.providers import (
+    MockProvider,
+    ModelStreamEvent,
+    ProviderError,
+    text_response,
+    tool_use_response,
+)
 from codeagent.runtime.events import Event, EventBus, EventType
 from codeagent.runtime.session import AgentSession
 from codeagent.runtime.tools import create_builtin_tools
@@ -241,3 +247,99 @@ class TestOfflineAgentLoop:
 
         # Check the request had the system prompt.
         assert provider.calls[0].system == "Custom system prompt"
+
+    @pytest.mark.asyncio
+    async def test_streaming_text_response(self, temp_repo):
+        response = text_response("All done!", input_tokens=7, output_tokens=3)
+        provider = MockProvider(
+            responses=[text_response("unused")],
+            stream_events=[
+                [
+                    ModelStreamEvent(type="message_start", payload={"model": "mock"}),
+                    ModelStreamEvent(type="text_delta", payload={"text": "All "}),
+                    ModelStreamEvent(type="text_delta", payload={"text": "done!"}),
+                    ModelStreamEvent(
+                        type="message_stop",
+                        payload={"response": response.model_dump(mode="json")},
+                    ),
+                ]
+            ],
+        )
+        bus = EventBus()
+        session = AgentSession(cwd=temp_repo, provider=provider, event_bus=bus)
+
+        events = [event async for event in session.run_stream("Do something")]
+
+        deltas = [e.payload["text"] for e in events if e.type == EventType.MODEL_TEXT_DELTA]
+        assert deltas == ["All ", "done!"]
+        assert len(bus.by_type(EventType.MODEL_STREAM_START)) == 1
+        assert len(bus.by_type(EventType.MODEL_STREAM_END)) == 1
+        assert bus.by_type(EventType.MODEL_RESPONSE)[0].payload["text"] == "All done!"
+        assert bus.by_type(EventType.SESSION_END)[0].payload["result"] == "All done!"
+        assert bus.by_type(EventType.SESSION_END)[0].payload["total_tokens"] == 10
+
+    @pytest.mark.asyncio
+    async def test_streaming_tool_call_continues_loop(self, temp_repo):
+        from pathlib import Path
+
+        test_file = Path(temp_repo) / "test.txt"
+        test_file.write_text("hello world")
+        tool_response = tool_use_response("t1", "read", {"file_path": "test.txt"})
+        final_response = text_response("File read successfully")
+        provider = MockProvider(
+            responses=[text_response("unused")],
+            stream_events=[
+                [
+                    ModelStreamEvent(type="message_start", payload={"model": "mock"}),
+                    ModelStreamEvent(
+                        type="message_stop",
+                        payload={"response": tool_response.model_dump(mode="json")},
+                    ),
+                ],
+                [
+                    ModelStreamEvent(type="message_start", payload={"model": "mock"}),
+                    ModelStreamEvent(
+                        type="text_delta",
+                        payload={"text": "File read successfully"},
+                    ),
+                    ModelStreamEvent(
+                        type="message_stop",
+                        payload={"response": final_response.model_dump(mode="json")},
+                    ),
+                ],
+            ],
+        )
+        bus = EventBus()
+        session = AgentSession(cwd=temp_repo, provider=provider, event_bus=bus)
+
+        events = [event async for event in session.run_stream("Read test.txt")]
+
+        assert len(provider.calls) == 2
+        second_call = provider.calls[1]
+        assert second_call.messages[-1].content[0]["type"] == "tool_result"
+        assert "hello world" in second_call.messages[-1].content[0]["content"]
+        assert len([e for e in events if e.type == EventType.TOOL_CALL_REQUESTED]) == 1
+        assert bus.by_type(EventType.SESSION_END)[0].payload["result"] == (
+            "File read successfully"
+        )
+
+    @pytest.mark.asyncio
+    async def test_stream_error_becomes_runtime_event(self, temp_repo):
+        provider = MockProvider(
+            responses=[text_response("unused")],
+            stream_events=[
+                [
+                    ModelStreamEvent(type="message_start", payload={"model": "mock"}),
+                    ModelStreamEvent(type="error", payload={"error": "stream exploded"}),
+                ]
+            ],
+        )
+        bus = EventBus()
+        session = AgentSession(cwd=temp_repo, provider=provider, event_bus=bus)
+
+        with pytest.raises(ProviderError):
+            async for _event in session.run_stream("Do something"):
+                pass
+
+        errors = bus.by_type(EventType.ERROR)
+        assert any("stream exploded" in event.payload.get("error", "") for event in errors)

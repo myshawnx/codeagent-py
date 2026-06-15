@@ -8,11 +8,13 @@ Anthropic SDK's object shapes is confined.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 
 from .base import ProviderError, ProviderTimeoutError
 from .types import (
     ModelRequest,
     ModelResponse,
+    ModelStreamEvent,
     StopReason,
     TextBlock,
     TokenCount,
@@ -89,6 +91,41 @@ class AnthropicProvider:
             input_tokens=getattr(response, "input_tokens", 0),
             estimated=False,
             provider=self.name,
+        )
+
+    async def stream(self, request: ModelRequest) -> AsyncIterator[ModelStreamEvent]:
+        """Stream normalized events from Anthropic's Messages streaming API."""
+        kwargs = self._message_kwargs(request)
+        kwargs["max_tokens"] = request.max_tokens
+        if request.temperature is not None:
+            kwargs["temperature"] = request.temperature
+
+        try:
+            async with asyncio.timeout(self._timeout_sec):
+                async with self._client.messages.stream(**kwargs) as stream:
+                    yield ModelStreamEvent(
+                        type="message_start",
+                        payload={"model": request.model},
+                    )
+                    async for text in stream.text_stream:
+                        if text:
+                            yield ModelStreamEvent(
+                                type="text_delta",
+                                payload={"text": text},
+                            )
+
+                    final_message = await stream.get_final_message()
+        except TimeoutError as exc:
+            raise ProviderTimeoutError(
+                f"Anthropic stream exceeded {self._timeout_sec}s"
+            ) from exc
+        except Exception as exc:  # noqa: BLE001 - normalize any SDK error
+            raise ProviderError(f"Anthropic stream failed: {exc}") from exc
+
+        response = self._normalize(final_message)
+        yield ModelStreamEvent(
+            type="message_stop",
+            payload={"response": response.model_dump(mode="json")},
         )
 
     @staticmethod
