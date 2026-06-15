@@ -7,9 +7,22 @@ and applying token-aware trimming.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from ..config.schema import ProjectProfile
+from ..providers import (
+    ModelMessage,
+    ModelProvider,
+    ModelRequest,
+    TokenCount,
+    count_tokens_with_fallback,
+    estimate_model_request_tokens,
+)
+
+TRUNCATION_NOTICE = "[... instructions truncated ...]"
+TokenCounter = Callable[[str], TokenCount]
+AsyncTokenCounter = Callable[[str], Awaitable[TokenCount]]
 
 
 def load_project_instructions(cwd: str) -> str | None:
@@ -61,11 +74,117 @@ def render_profile_context(profile: ProjectProfile | None) -> str:
     return "\n".join(lines)
 
 
+def estimate_system_prompt_tokens(prompt: str) -> TokenCount:
+    """Fallback system-prompt token estimate, explicitly marked estimated."""
+    request = ModelRequest(
+        model="context-budget",
+        messages=[ModelMessage(role="user", content=[{"type": "text", "text": ""}])],
+        system=prompt,
+        max_tokens=1,
+    )
+    return estimate_model_request_tokens(request, provider="context-estimator")
+
+
+def _compose_prompt_parts(
+    base_prompt: str,
+    profile: ProjectProfile | None,
+    project_instructions: str | None,
+) -> tuple[list[str], str | None]:
+    stable_sections = [base_prompt]
+
+    if profile:
+        profile_ctx = render_profile_context(profile)
+        if profile_ctx:
+            stable_sections.append(profile_ctx)
+
+    instructions = project_instructions.strip() if project_instructions else None
+    return stable_sections, instructions
+
+
+def _join_prompt(stable_sections: list[str], instructions: str | None = None) -> str:
+    sections = list(stable_sections)
+    if instructions is not None:
+        sections.append("# Project Instructions")
+        sections.append(instructions)
+    return "\n\n".join(section for section in sections if section)
+
+
+def _truncated_instructions(instructions: str, char_count: int) -> str:
+    prefix = instructions[:char_count].rstrip()
+    if prefix:
+        return f"{prefix}\n\n{TRUNCATION_NOTICE}"
+    return TRUNCATION_NOTICE
+
+
+def _trim_with_counter(
+    stable_sections: list[str],
+    instructions: str | None,
+    max_tokens: int,
+    token_counter: TokenCounter,
+) -> str:
+    prompt = _join_prompt(stable_sections, instructions)
+    if token_counter(prompt).input_tokens <= max_tokens or instructions is None:
+        return prompt
+
+    best: str | None = None
+    low = 0
+    high = len(instructions)
+    while low <= high:
+        mid = (low + high) // 2
+        candidate = _join_prompt(
+            stable_sections,
+            _truncated_instructions(instructions, mid),
+        )
+        if token_counter(candidate).input_tokens <= max_tokens:
+            best = candidate
+            low = mid + 1
+        else:
+            high = mid - 1
+
+    if best is not None:
+        return best
+
+    # The stable prefix is more important than hitting the budget exactly.
+    return _join_prompt(stable_sections, TRUNCATION_NOTICE)
+
+
+async def _trim_with_async_counter(
+    stable_sections: list[str],
+    instructions: str | None,
+    max_tokens: int,
+    token_counter: AsyncTokenCounter,
+) -> str:
+    prompt = _join_prompt(stable_sections, instructions)
+    if (await token_counter(prompt)).input_tokens <= max_tokens or instructions is None:
+        return prompt
+
+    best: str | None = None
+    low = 0
+    high = len(instructions)
+    while low <= high:
+        mid = (low + high) // 2
+        candidate = _join_prompt(
+            stable_sections,
+            _truncated_instructions(instructions, mid),
+        )
+        if (await token_counter(candidate)).input_tokens <= max_tokens:
+            best = candidate
+            low = mid + 1
+        else:
+            high = mid - 1
+
+    if best is not None:
+        return best
+
+    return _join_prompt(stable_sections, TRUNCATION_NOTICE)
+
+
 def build_system_prompt(
     base_prompt: str,
     profile: ProjectProfile | None = None,
     project_instructions: str | None = None,
     max_tokens: int | None = None,
+    token_counter: TokenCounter | None = None,
 ) -> str:
     """Build the final system prompt.
 
@@ -78,34 +197,57 @@ def build_system_prompt(
         base_prompt: Core agent system prompt.
         profile: Detected project profile (optional).
         project_instructions: Loaded from AGENTS.md/etc (optional).
-        max_tokens: Token budget for system prompt (optional, for future trimming).
+        max_tokens: Token budget for system prompt (optional).
+        token_counter: Optional provider-backed or test token counter. If omitted,
+            trimming uses an explicitly estimated fallback.
 
     Returns:
         Complete system prompt string.
     """
-    sections = [base_prompt]
+    stable_sections, instructions = _compose_prompt_parts(
+        base_prompt,
+        profile,
+        project_instructions,
+    )
+    if max_tokens is None:
+        return _join_prompt(stable_sections, instructions)
 
-    # Add profile context if available.
-    if profile:
-        profile_ctx = render_profile_context(profile)
-        if profile_ctx:
-            sections.append(profile_ctx)
+    return _trim_with_counter(
+        stable_sections,
+        instructions,
+        max_tokens,
+        token_counter or estimate_system_prompt_tokens,
+    )
 
-    # Add project instructions if present.
-    if project_instructions:
-        sections.append("# Project Instructions")
-        sections.append(project_instructions.strip())
 
-    combined = "\n\n".join(sections)
+async def build_system_prompt_with_provider_budget(
+    base_prompt: str,
+    *,
+    provider: ModelProvider,
+    model: str,
+    max_tokens: int,
+    profile: ProjectProfile | None = None,
+    project_instructions: str | None = None,
+) -> str:
+    """Build and trim a system prompt using provider-level token counting."""
+    stable_sections, instructions = _compose_prompt_parts(
+        base_prompt,
+        profile,
+        project_instructions,
+    )
 
-    # Token-aware trimming: if max_tokens is set and exceeded, trim instructions.
-    # For now, this is a placeholder - full implementation would use tiktoken or similar.
-    if max_tokens:
-        # Simple char-based approximation: ~4 chars per token.
-        approx_tokens = len(combined) // 4
-        if approx_tokens > max_tokens:
-            # Trim from the end of project instructions (least critical).
-            char_limit = max_tokens * 4
-            combined = combined[:char_limit] + "\n\n[... instructions truncated ...]"
+    async def count_prompt(prompt: str) -> TokenCount:
+        request = ModelRequest(
+            model=model,
+            messages=[ModelMessage(role="user", content=[{"type": "text", "text": " "}])],
+            system=prompt,
+            max_tokens=1,
+        )
+        return await count_tokens_with_fallback(provider, request)
 
-    return combined
+    return await _trim_with_async_counter(
+        stable_sections,
+        instructions,
+        max_tokens,
+        count_prompt,
+    )

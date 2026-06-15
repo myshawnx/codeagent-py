@@ -15,6 +15,7 @@ from .types import (
     ModelResponse,
     StopReason,
     TextBlock,
+    TokenCount,
     ToolUseBlock,
     Usage,
 )
@@ -49,15 +50,8 @@ class AnthropicProvider:
         self._timeout_sec = timeout_sec
 
     async def generate(self, request: ModelRequest) -> ModelResponse:
-        kwargs: dict = {
-            "model": request.model,
-            "max_tokens": request.max_tokens,
-            "messages": [m.model_dump() for m in request.messages],
-        }
-        if request.tools:
-            kwargs["tools"] = [t.model_dump() for t in request.tools]
-        if request.system:
-            kwargs["system"] = request.system
+        kwargs = self._message_kwargs(request)
+        kwargs["max_tokens"] = request.max_tokens
         if request.temperature is not None:
             kwargs["temperature"] = request.temperature
 
@@ -74,6 +68,40 @@ class AnthropicProvider:
             raise ProviderError(f"Anthropic call failed: {exc}") from exc
 
         return self._normalize(response)
+
+    async def count_tokens(self, request: ModelRequest) -> TokenCount:
+        """Count request tokens using Anthropic's official Messages API."""
+        kwargs = self._message_kwargs(request)
+
+        try:
+            response = await asyncio.wait_for(
+                self._client.messages.count_tokens(**kwargs),
+                timeout=self._timeout_sec,
+            )
+        except asyncio.TimeoutError as exc:
+            raise ProviderTimeoutError(
+                f"Anthropic token count exceeded {self._timeout_sec}s"
+            ) from exc
+        except Exception as exc:  # noqa: BLE001 - normalize any SDK error
+            raise ProviderError(f"Anthropic token count failed: {exc}") from exc
+
+        return TokenCount(
+            input_tokens=getattr(response, "input_tokens", 0),
+            estimated=False,
+            provider=self.name,
+        )
+
+    @staticmethod
+    def _message_kwargs(request: ModelRequest) -> dict:
+        kwargs: dict = {
+            "model": request.model,
+            "messages": [m.model_dump() for m in request.messages],
+        }
+        if request.tools:
+            kwargs["tools"] = [t.model_dump() for t in request.tools]
+        if request.system:
+            kwargs["system"] = request.system
+        return kwargs
 
     @staticmethod
     def _normalize(response: object) -> ModelResponse:

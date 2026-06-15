@@ -107,6 +107,14 @@ class Usage(BaseModel):
         )
 
 
+class TokenCount(BaseModel):
+    """Provider-level token count for a model request."""
+
+    input_tokens: int
+    estimated: bool = False
+    provider: str = "unknown"
+
+
 # Normalized stop reasons across providers.
 StopReason = Literal["end_turn", "tool_use", "max_tokens", "stop_sequence", "error"]
 

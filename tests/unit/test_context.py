@@ -5,8 +5,14 @@ from pathlib import Path
 import pytest
 
 from codeagent.config.schema import ProjectProfile
-from codeagent.context import build_system_prompt, load_project_instructions, render_profile_context
-from codeagent.providers import MockProvider, text_response
+from codeagent.context import (
+    build_system_prompt,
+    build_system_prompt_with_provider_budget,
+    estimate_system_prompt_tokens,
+    load_project_instructions,
+    render_profile_context,
+)
+from codeagent.providers import MockProvider, TokenCount, text_response
 from codeagent.runtime.events import EventBus
 from codeagent.runtime.session import AgentSession
 
@@ -116,14 +122,70 @@ class TestBuildSystemPrompt:
         assert "Language: go" in prompt
         assert "Use idiomatic Go." in prompt
 
-    def test_token_trimming_placeholder(self):
-        # Token trimming is a simple char-based approximation for now.
+    def test_token_trimming_uses_injected_counter(self):
         long_instructions = "x" * 10000
-        prompt = build_system_prompt("Base.", project_instructions=long_instructions, max_tokens=100)
 
-        # Should be trimmed to ~400 chars (100 tokens * 4).
-        assert len(prompt) < 1000
+        def count_chars(prompt):
+            return TokenCount(input_tokens=len(prompt), estimated=False, provider="test")
+
+        prompt = build_system_prompt(
+            "Base.",
+            project_instructions=long_instructions,
+            max_tokens=200,
+            token_counter=count_chars,
+        )
+
+        assert len(prompt) <= 200
+        assert prompt.startswith("Base.")
         assert "truncated" in prompt
+
+    def test_token_trimming_preserves_stable_prefix(self):
+        profile = ProjectProfile(language="python", package_manager="uv")
+
+        def count_chars(prompt):
+            return TokenCount(input_tokens=len(prompt), estimated=False, provider="test")
+
+        prompt = build_system_prompt(
+            "Base stable prompt.",
+            profile=profile,
+            project_instructions="x" * 10000,
+            max_tokens=10,
+            token_counter=count_chars,
+        )
+
+        assert prompt.startswith("Base stable prompt.")
+        assert "Language: python" in prompt
+        assert "Package Manager: uv" in prompt
+        assert "truncated" in prompt
+
+    def test_default_token_estimate_is_marked_estimated(self):
+        count = estimate_system_prompt_tokens("Base.")
+        assert count.input_tokens > 0
+        assert count.estimated is True
+        assert count.provider == "context-estimator"
+
+    @pytest.mark.asyncio
+    async def test_provider_budget_uses_provider_token_counter(self):
+        def token_handler(request, index):
+            return TokenCount(
+                input_tokens=len(request.system or ""),
+                estimated=False,
+                provider="mock",
+            )
+
+        provider = MockProvider(responses=[text_response("ok")], token_count=token_handler)
+        prompt = await build_system_prompt_with_provider_budget(
+            "Base.",
+            provider=provider,
+            model="mock-model",
+            project_instructions="x" * 10000,
+            max_tokens=200,
+        )
+
+        assert len(prompt) <= 200
+        assert "truncated" in prompt
+        assert provider.token_count_calls
+        assert provider.token_count_calls[0].model == "mock-model"
 
 
 class TestContextIntegrationWithSession:

@@ -11,8 +11,12 @@ from codeagent.providers import (
     ModelResponse,
     ProviderError,
     TextBlock,
+    TokenCount,
+    TokenCountingNotSupported,
+    ToolSchema,
     ToolUseBlock,
     Usage,
+    count_tokens_with_fallback,
     text_response,
     tool_use_response,
 )
@@ -23,6 +27,11 @@ class _FakeUsage:
     def __init__(self, i, o):
         self.input_tokens = i
         self.output_tokens = o
+
+
+class _FakeTokenCount:
+    def __init__(self, input_tokens):
+        self.input_tokens = input_tokens
 
 
 class _FakeBlock:
@@ -95,6 +104,14 @@ class TestUsage:
         assert total.total_tokens == 20
 
 
+class TestTokenCount:
+    def test_token_count_marks_provider_and_estimate(self):
+        count = TokenCount(input_tokens=42, estimated=True, provider="fallback")
+        assert count.input_tokens == 42
+        assert count.estimated is True
+        assert count.provider == "fallback"
+
+
 class TestMockProvider:
     @pytest.mark.asyncio
     async def test_scripted_responses_in_order(self):
@@ -128,6 +145,86 @@ class TestMockProvider:
     def test_requires_responses_or_handler(self):
         with pytest.raises(ValueError):
             MockProvider()
+
+    @pytest.mark.asyncio
+    async def test_count_tokens_fixed_value(self):
+        provider = MockProvider(responses=[text_response("ok")], token_count=123)
+        req = ModelRequest(model="m", messages=[ModelMessage(role="user", content=[])])
+
+        count = await provider.count_tokens(req)
+
+        assert count.input_tokens == 123
+        assert count.estimated is False
+        assert count.provider == "mock"
+        assert provider.token_count_calls == [req]
+
+    @pytest.mark.asyncio
+    async def test_count_tokens_handler(self):
+        def token_handler(request, index):
+            return TokenCount(
+                input_tokens=len(request.messages) + index,
+                estimated=False,
+                provider="scripted",
+            )
+
+        provider = MockProvider(responses=[text_response("ok")], token_count=token_handler)
+        req = ModelRequest(model="m", messages=[ModelMessage(role="user", content=[])])
+
+        assert (await provider.count_tokens(req)).input_tokens == 1
+        assert (await provider.count_tokens(req)).input_tokens == 2
+
+    @pytest.mark.asyncio
+    async def test_count_tokens_default_is_estimated(self):
+        provider = MockProvider(responses=[text_response("ok")])
+        req = ModelRequest(
+            model="m",
+            messages=[ModelMessage(role="user", content=[{"type": "text", "text": "hello"}])],
+        )
+
+        count = await provider.count_tokens(req)
+
+        assert count.input_tokens > 0
+        assert count.estimated is True
+        assert count.provider == "mock"
+
+
+class TestTokenCountingFallback:
+    @pytest.mark.asyncio
+    async def test_provider_without_count_tokens_falls_back(self):
+        class _LegacyProvider:
+            name = "legacy"
+
+            async def generate(self, request):
+                return text_response("ok")
+
+        req = ModelRequest(
+            model="m",
+            messages=[ModelMessage(role="user", content=[{"type": "text", "text": "hello"}])],
+        )
+
+        count = await count_tokens_with_fallback(_LegacyProvider(), req)
+
+        assert count.input_tokens > 0
+        assert count.estimated is True
+        assert count.provider == "legacy"
+
+    @pytest.mark.asyncio
+    async def test_provider_can_signal_unsupported(self):
+        class _UnsupportedProvider:
+            name = "unsupported"
+
+            async def count_tokens(self, request):
+                raise TokenCountingNotSupported("not available")
+
+        req = ModelRequest(
+            model="m",
+            messages=[ModelMessage(role="user", content=[{"type": "text", "text": "hello"}])],
+        )
+
+        count = await count_tokens_with_fallback(_UnsupportedProvider(), req)
+
+        assert count.estimated is True
+        assert count.provider == "unsupported"
 
 
 class TestAnthropicProviderAsync:
@@ -188,3 +285,57 @@ class TestAnthropicProviderAsync:
         assert captured["model"] == "claude-x"
         assert captured["system"] == "be helpful"
         assert captured["messages"][0]["role"] == "user"
+
+    @pytest.mark.asyncio
+    async def test_count_tokens_uses_official_messages_api(self):
+        captured = {}
+
+        class _CaptureMessages:
+            async def count_tokens(self, **kw):
+                captured.update(kw)
+                return _FakeTokenCount(321)
+
+        class _CaptureClient:
+            messages = _CaptureMessages()
+
+        provider = AnthropicProvider(client=_CaptureClient())
+        req = ModelRequest(
+            model="claude-x",
+            messages=[ModelMessage(role="user", content=[{"type": "text", "text": "hi"}])],
+            tools=[
+                ToolSchema(
+                    name="read",
+                    description="Read a file",
+                    input_schema={"type": "object"},
+                )
+            ],
+            system="be helpful",
+            max_tokens=99,
+            temperature=0.2,
+        )
+
+        count = await provider.count_tokens(req)
+
+        assert count.input_tokens == 321
+        assert count.estimated is False
+        assert count.provider == "anthropic"
+        assert captured["model"] == "claude-x"
+        assert captured["system"] == "be helpful"
+        assert captured["messages"][0]["role"] == "user"
+        assert captured["tools"][0]["name"] == "read"
+        assert "max_tokens" not in captured
+        assert "temperature" not in captured
+
+    @pytest.mark.asyncio
+    async def test_count_tokens_sdk_error_is_normalized(self):
+        class _BoomMessages:
+            async def count_tokens(self, **kw):
+                raise RuntimeError("boom")
+
+        class _BoomClient:
+            messages = _BoomMessages()
+
+        provider = AnthropicProvider(client=_BoomClient())
+        req = ModelRequest(model="m", messages=[ModelMessage(role="user", content=[])])
+        with pytest.raises(ProviderError, match="token count failed"):
+            await provider.count_tokens(req)
