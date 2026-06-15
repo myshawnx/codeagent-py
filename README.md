@@ -1,160 +1,84 @@
 # CodeAgent-Py
 
+[English README](README_EN.md)
+
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-165%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-165%20passing-brightgreen.svg)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**CodeAgent-Py is a Python-first local coding-agent runtime built as an interview-grade systems project.**
+**CodeAgent-Py 是一个 Python-first、本地优先的 Coding Agent Runtime。**
 
-It is inspired by **Claude Code**, **OpenAI Codex-style coding agents**, and **Pi Agent**, but it is intentionally smaller: the goal is not to clone a commercial coding assistant. The goal is to demonstrate that the author understands the core infrastructure behind production coding agents:
-
-- model-provider abstraction
-- tool calling and tool-result normalization
-- async model execution
-- policy and approval modes
-- tool-level filesystem safety
-- runtime event streams
-- JSONL session traces
-- project context building
-- deterministic evals
-- testable offline agent loops
-
-If you are reviewing this project for an AI Agent / Coding Agent role, start with the architecture and tests rather than the CLI polish.
+它的重点不是做一个完整商业编码助手，而是把 Coding Agent 的底层运行机制拆成可读、可测、可扩展的模块：模型 Provider、Agent Loop、工具调用、策略审批、本地安全执行、事件流、JSONL Trace、Session Resume、Eval Harness 和 MCP stdio 集成。
 
 ---
 
-## Project Positioning
+## 功能
 
-### What this project is
-
-CodeAgent-Py is a **local agent runtime** that runs in a developer workspace, calls Claude through the Anthropic SDK, executes local tools, applies policy checks, and records the session as structured events.
-
-It is meant to answer interview questions such as:
-
-- How do you build a safe tool-calling loop?
-- How do you decouple an agent runtime from one model provider?
-- How do you test an agent without spending API credits?
-- How do you record enough data to debug an agent trace?
-- How do you separate policy decisions from tool-level safety?
-- How do you keep the design understandable instead of hiding it behind a framework?
-
-### What this project is not
-
-CodeAgent-Py is **not** a production competitor to Claude Code, Codex, Cursor, or other commercial coding agents.
-
-It currently does not aim to provide:
-
-- a polished TUI / IDE / desktop experience
-- hosted cloud sandboxes
-- background long-running task orchestration
-- polished real-time streaming UI beyond the current CLI stream output
-- full TUI / IDE-grade permission prompts
-- full MCP server marketplace integration
-- multi-agent orchestration
-- production auth, billing, telemetry, or rate limiting
-
-Those are product and platform layers. This repository focuses on the runtime foundation.
-
----
-
-## Lineage: Pi Agent → Agent CLI → CodeAgent-Py
-
-This repository is best understood as the **Python continuation of the earlier TypeScript `agent-cli` project**, which itself adapted ideas from Pi Agent and added practical CLI-facing coding-agent features.
-
-So the comparison is not only:
+CodeAgent-Py 可以在本地 workspace 中执行一个受控的 coding-agent 循环：
 
 ```text
-CodeAgent-Py vs Claude Code / Codex / Pi Agent
+用户任务
+  -> 构建项目上下文
+  -> 调用模型 Provider
+  -> 解析文本或工具调用
+  -> 经过 Policy Gateway 审批
+  -> 执行本地工具
+  -> 将工具结果回传给模型
+  -> 记录事件和 JSONL Trace
+  -> 支持从 Trace 继续会话
 ```
 
-It is also:
+主要功能：
 
-```text
-Pi Agent as a library
-  -> Agent CLI as a TypeScript coding-agent CLI
-    -> CodeAgent-Py as a Python-first rewrite and hardening pass
-```
-
-The goal for CodeAgent-Py is to preserve the important Agent CLI ideas while making the implementation easier to discuss in Python AI-infrastructure interviews.
-
-### Feature Parity Map
-
-| Capability | Pi Agent as a library | Agent CLI net addition | CodeAgent-Py status |
-|---|---:|---|---|
-| Agent loop, tool calling, state | ✅ Native | Reused | ✅ Implemented as a custom Python `AgentLoop` |
-| Read / write / edit / bash tools | ✅ Native | Reused and hardened through policy gateway | ✅ Implemented; additionally adds `apply_patch` and `git_diff` |
-| Session persistence / resume / fork | ✅ Native tree-shaped JSONL | Reused; `TaskView` projected from it | ✅ JSONL traces and linear resume implemented; fork/tree is future work |
-| `-p` print mode / SDK / RPC | ✅ Native | Thin CLI wrapper | ⚠️ CLI has `--print` flag, but SDK/RPC parity is not complete |
-| Declarative approval modes + command risk tiers | ❌ | ★ Net new in Agent CLI | ✅ Implemented via pure-function policy engine, `PolicyGateway`, and approval handlers |
-| MCP integration over stdio JSON-RPC | ❌ | ★ Net new in Agent CLI | ⚠️ Stdio MCP extension plus filesystem/GitHub presets; not yet a marketplace |
-| Eval / benchmark framework | ❌ | ★★ Strongest hiring signal in Agent CLI | ✅ YAML eval harness with richer scenarios, metrics, and trace export; model matrices remain future work |
-| Project profile + cross-session memory | ❌ | ★ Small but realistic addition | ⚠️ Project profile implemented; memory primitives exist; deeper memory use is future work |
-
-### Honest Parity Assessment
-
-CodeAgent-Py currently preserves the **architectural intent** of Agent CLI, but it is not yet a one-to-one feature clone.
-
-The strongest parity areas are:
-
-- agent loop and tool calling
-- policy engine and approval modes
-- command risk classification
-- project profile detection
-- eval harness
-- local tool safety
-- trace persistence foundation
-
-The biggest remaining parity gaps are:
-
-- tree/fork session model
-- SDK/RPC surface
-- richer TUI / IDE confirmation flows
-- full MCP marketplace / server lifecycle
-- deeper cross-session memory integration
-
-This is intentional for the current interview scope: the Python version prioritizes **runtime clarity, safety hardening, provider abstraction, and tests** before rebuilding every product-level feature from Agent CLI.
-
----
-
-## Feature Overview
-
-| Area | Implemented | Why it matters |
+| 能力 | 状态 | 说明 |
 |---|---:|---|
-| Provider abstraction | ✅ | Runtime depends on normalized `ModelProvider`, not Anthropic SDK objects |
-| Anthropic provider | ✅ | Uses the official Anthropic Python SDK through an async adapter |
-| Mock provider | ✅ | Enables offline tests for full tool-use loops |
-| Provider token counting | ✅ | Anthropic uses official `messages.count_tokens`; fallback counts are marked estimated |
-| Streaming responses | ✅ | Provider-neutral stream events, runtime events, and CLI `--stream` output |
-| Tool calling | ✅ | Normalized `tool_use` and `tool_result` blocks |
-| Parallel safe tools | ✅ | Read-only batches such as `read` / `git_diff` can run concurrently with ordered results |
-| Tool result cache | ✅ | `read` results are cached with mtime / size validation and invalidated after writes |
-| Runtime events | ✅ | Emits structured events for debugging, evals, and traces |
-| Event sinks | ✅ | In-memory, console, and JSONL trace sinks share the same event stream |
-| JSONL traces | ✅ | Saves sessions under `.agent/sessions/<session_id>.jsonl` |
-| Policy engine | ✅ | Pure-function classify layer for allow / confirm / deny decisions |
-| Approval modes | ✅ | `readonly`, `suggest`, `workspace-write`, `auto` |
-| Approval handlers | ✅ | Rich CLI prompt, auto approval, non-interactive deny, and recording handler |
-| Tool-level safety | ✅ | Blocks path traversal, absolute escapes, and symlink escapes |
-| Bash hardening | ✅ | Timeout, output truncation, exit status handling |
-| File tools | ✅ | `read`, `write`, `edit`, `apply_patch`, `git_diff` |
-| Loop guards | ✅ | Tool-call limit, token budget, repeated failure guard, reward-hacking guard |
-| Context builder | ✅ | Loads project instructions and detected project profile; supports provider-backed token budgets |
-| Eval harness | ✅ | YAML scenarios, structured metrics, eval traces, and markdown / JSON reports |
-| MCP integration | ⚠️ | Stdio extension, `.agent/mcp.json`, filesystem/GitHub presets, and env-based credentials |
-| Resume | ✅ | Linear resume reconstructs normalized messages from JSONL traces |
-| Streaming UI | ✅ | CLI `--stream` is implemented; richer TUI/IDE streaming remains future work |
+| Provider 抽象 | 已实现 | Runtime 依赖标准化 `ModelProvider`，不直接绑定 SDK 对象 |
+| AnthropicProvider | 已实现 | 通过 Anthropic Python SDK 调用 Claude |
+| MockProvider | 已实现 | 离线测试完整 Agent Loop，不消耗 API 调用 |
+| Tool Calling | 已实现 | 标准化 `tool_use` / `tool_result` |
+| Streaming | 已实现 | Provider-neutral stream events，CLI 支持 `--stream` |
+| 本地文件工具 | 已实现 | `read`、`write`、`edit`、`apply_patch`、`git_diff` |
+| Bash 工具 | 已实现 | timeout、输出截断、非零退出处理 |
+| 工具安全 | 已实现 | 阻止路径穿越、绝对路径逃逸、symlink escape |
+| Policy Gateway | 已实现 | 支持 allow / confirm / deny |
+| Approval Handler | 已实现 | 支持 Rich prompt、auto、deny、recording handler |
+| Loop Guards | 已实现 | 限制工具调用、token budget、重复失败、reward hacking |
+| EventBus | 已实现 | 统一记录 model、tool、policy、session、error 事件 |
+| JSONL Trace | 已实现 | 保存到 `.agent/sessions/<session_id>.jsonl` |
+| Resume | 已实现 | 从 Trace 重建 normalized messages 并继续会话 |
+| Eval Harness | 已实现 | YAML 场景、结构化指标、报告和 trace export |
+| MCP stdio | 基础可用 | filesystem / GitHub presets，env credentials |
+| 并发只读工具 | 已实现 | `parallel_safe` 工具可并发执行并保持结果顺序 |
+| 读缓存 | 已实现 | 按 mtime / size 校验，写入后失效 |
+
+当前测试结果：
+
+```text
+165 passed, 4 skipped
+```
 
 ---
 
-## Why This Project Is Interesting
+## 和主流 Coding Agent 的区别
 
-Most small coding-agent demos put everything in one loop:
+| 项目 | 主要定位 | 更强的地方 | CodeAgent-Py 的区别 |
+|---|---|---|---|
+| Claude Code | 成熟商业 coding assistant，覆盖 terminal、IDE、desktop、web 等使用场景 | 产品体验、真实编码效果、生态集成、权限交互、远程/多端工作流 | CodeAgent-Py 不追求产品完整度，更强调 runtime 内部实现可见、可测、可改 |
+| OpenAI Codex | OpenAI 的 coding-agent 产品和平台能力，包含模型、SDK、CLI、沙箱、工作流、子代理等方向 | 平台能力、模型能力、托管环境、规模化工作流和生态 | CodeAgent-Py 是本地 Python runtime，不依赖托管平台，更适合研究 Agent Loop 和安全边界 |
+| OpenCode | 开源 AI coding agent，提供 terminal/TUI、desktop、IDE 等形态 | 用户侧体验更完整，开源生态更成熟，多 provider 配置更丰富 | CodeAgent-Py 更小，更偏 Python runtime 参考实现，重点在模块边界、测试和 trace |
+| Pi Agent / trajectory-style agents | 偏 agent framework、trajectory、policy、eval 等概念启发 | 抽象层和研究味更强，适合探索 agent 行为建模 | CodeAgent-Py 更贴近本地代码仓库操作，实现了文件、bash、policy、trace、eval 的具体闭环 |
+| CodeAgent-Py | Python-first、本地优先 coding-agent runtime | 结构清晰、离线可测、安全边界显式、JSONL trace 可检查、适合二次开发 | 不提供成熟 UI、云端 sandbox、商业权限系统、多端同步或生产级托管 |
+
+一句话总结：
 
 ```text
-prompt -> model -> maybe call a tool -> print result
+Claude Code / Codex / OpenCode 更像可直接使用的产品或平台；
+CodeAgent-Py 更像一个把 coding-agent runtime 拆开给你看的 Python 参考实现。
 ```
 
-CodeAgent-Py instead separates the runtime into explicit layers:
+---
+
+## 架构
 
 ```text
 CLI
@@ -162,346 +86,40 @@ CLI
     -> Context Builder
     -> AgentLoop
       -> ModelProvider
-        -> AnthropicProvider / MockProvider
+        -> AnthropicProvider
+        -> MockProvider
       -> Tool Registry
-      -> Extension Hooks
+        -> read / write / edit / apply_patch / git_diff / bash
+      -> Extensions
         -> PolicyGateway
         -> LoopGuards
       -> EventBus
-        -> JSONL TraceWriter
+        -> InMemorySink
+        -> ConsoleSink
+        -> TraceWriter
 ```
 
-This makes the project useful for interviews because each layer can be discussed, tested, and extended independently.
-
----
-
-## Comparison with Claude Code, Codex, and Pi Agent
-
-This project borrows ideas from several agent systems, but makes different tradeoffs.
-
-### High-Level Comparison
-
-| Dimension | Claude Code | OpenAI Codex-style Agents | Pi Agent | CodeAgent-Py |
-|---|---|---|---|---|
-| Primary goal | Production coding assistant | Model / agent product for coding tasks | Research / framework-style agent patterns | Interview-grade local runtime |
-| UX polish | Very high | Product-dependent | Low to medium | Low; CLI-first |
-| Local runtime clarity | Hidden behind product | Hidden or provider-specific | Good | Very high |
-| Provider abstraction | Claude-focused | OpenAI-focused | Varies | Explicit `ModelProvider` protocol |
-| Offline testing | Not the main focus | Not the main focus | Partial | First-class via `MockProvider` |
-| Tool safety | Product-managed | Product / sandbox-managed | Framework-dependent | Explicit policy + tool safety layers |
-| Event trace model | Product-internal | Product-internal | Trajectory-oriented | Public JSONL event stream |
-| Evals | Product-internal | Product-internal | Research-oriented | YAML deterministic evals |
-| Extensibility | Through product hooks / MCP | Through platform APIs | Framework extension | Python modules and extension hooks |
-| Best use case | Daily professional coding | Hosted coding assistance / model-driven coding | Agent research patterns | Showing agent infrastructure knowledge |
-
----
-
-## Claude Code vs CodeAgent-Py
-
-**Claude Code** is Anthropic's production coding assistant available through the CLI, IDE integrations, desktop, and web surfaces. It has a much richer user experience, mature product workflows, and deep integration with Claude models.
-
-CodeAgent-Py is much smaller, but it exposes the internals that are useful in an interview.
-
-### Where Claude Code is stronger
-
-- polished interactive UX
-- high-quality coding behavior backed by Claude models
-- mature CLI / IDE / desktop workflows
-- built-in product-level context handling
-- better real-world ergonomics for daily development
-- broader ecosystem integration, including MCP-style workflows
-
-### Where CodeAgent-Py is stronger as an interview artifact
-
-- the runtime code is small enough to read in one sitting
-- provider abstraction is explicit and testable
-- full agent loop can be tested offline with `MockProvider`
-- event stream is visible and persisted as JSONL
-- policy logic is pure-function and unit-tested
-- tool safety is implemented in local Python code, not hidden behind a product boundary
-
-### Honest takeaway
-
-Use Claude Code for real work. Use CodeAgent-Py to show that you understand how a Claude-Code-like runtime could be built.
-
----
-
-## Codex-Style Agents vs CodeAgent-Py
-
-The term **Codex** is used here broadly to refer to OpenAI-style coding agents and coding-model workflows. Codex-style systems are usually strongest when the platform provides a capable model, hosted execution environment, or polished product loop.
-
-CodeAgent-Py takes a different angle: it focuses on the local harness around the model.
-
-### Where Codex-style systems are stronger
-
-- stronger product integration when used through the vendor's native environment
-- potentially better hosted sandboxing depending on the platform
-- model-native coding workflows and benchmark-tuned behavior
-- less infrastructure to build yourself
-
-### Where CodeAgent-Py is stronger as a learning project
-
-- provider-neutral internal request / response types
-- explicit tool schemas and execution boundaries
-- local workspace safety checks you can inspect
-- transparent event history
-- deterministic YAML eval harness
-- no dependency on a hosted agent platform for tests
-
-### Honest takeaway
-
-Codex-style agents are closer to a product or platform surface. CodeAgent-Py is closer to a reference runtime for understanding how coding-agent infrastructure works.
-
----
-
-## Pi Agent vs CodeAgent-Py
-
-**Pi Agent** influenced this project most at the architecture level: agent trajectories, explicit policy decisions, small composable components, and eval-oriented thinking.
-
-CodeAgent-Py adapts those ideas into a Python-first local coding assistant.
-
-### What CodeAgent-Py borrows from Pi Agent
-
-- trajectory-style thinking through event traces
-- policy as a separable decision layer
-- eval-first mindset
-- explicit tool calls and tool results
-- a preference for small, testable units over framework magic
-
-### Where Pi Agent is stronger
-
-- more research-oriented agent abstractions
-- deeper trajectory concepts
-- better conceptual foundation for branching and replay patterns
-- closer to an experimental agent framework
-
-### Where CodeAgent-Py is stronger for coding-agent interviews
-
-- concrete local coding tools
-- workspace filesystem safety
-- approval modes similar to coding-agent products
-- Typer/Rich CLI
-- Python package structure that resembles production app code
-- focused tests around coding-agent failure modes
-
-### Honest takeaway
-
-Pi Agent is a source of architectural inspiration. CodeAgent-Py is a practical adaptation for local coding-agent runtime interviews.
-
----
-
-## Core Architecture
-
-### Provider Layer
-
-The runtime does not depend directly on Anthropic SDK response objects.
-
-```python
-class ModelProvider(Protocol):
-    async def generate(self, request: ModelRequest) -> ModelResponse:
-        ...
-
-    async def count_tokens(self, request: ModelRequest) -> TokenCount:
-        ...
-
-    def stream(self, request: ModelRequest) -> AsyncIterator[ModelStreamEvent]:
-        ...
-```
-
-Implemented providers:
-
-- `AnthropicProvider` — real model calls through the official Anthropic Python SDK
-- `MockProvider` — scripted responses for offline tests and deterministic evals
-
-Normalized internal types include:
-
-- `ModelRequest`
-- `ModelResponse`
-- `ModelStreamEvent`
-- `TokenCount`
-- `ModelMessage`
-- `TextBlock`
-- `ToolUseBlock`
-- `ToolResultBlock`
-- `Usage`
-
-This is the main seam that makes the runtime portable.
-
----
-
-### Agent Loop
-
-The loop is intentionally explicit:
-
-1. append user message
-2. build normalized model request
-3. call provider
-4. append assistant response
-5. if `tool_use`, run policy and tool execution
-6. append tool results
-7. repeat until final answer or turn limit
-
-This is implemented in `src/codeagent/runtime/loop.py`.
-
----
-
-### Runtime Event Stream
-
-Every meaningful step emits an event:
-
-- `session_start`
-- `turn_start`
-- `model_request`
-- `model_stream_start`
-- `model_text_delta`
-- `model_stream_end`
-- `model_response`
-- `tool_call_requested`
-- `policy_verdict`
-- `tool_start`
-- `tool_end`
-- `turn_end`
-- `session_end`
-- `error`
-
-Events are collected in memory and can be persisted as JSONL.
-
-Example trace line:
-
-```json
-{
-  "id": "evt_...",
-  "timestamp": 1760000000.0,
-  "type": "tool_end",
-  "session_id": "...",
-  "parent_id": "...",
-  "payload": {
-    "tool": "read",
-    "is_error": false
-  }
-}
-```
-
----
-
-### Policy and Safety Layers
-
-CodeAgent-Py deliberately separates **policy decisions** from **tool-level enforcement**.
-
-#### Policy layer
-
-The policy engine decides whether a tool call should be allowed, confirmed, or denied.
-
-```python
-verdict = classify(event, mode, policy, opts)
-```
-
-This layer is pure-function and easy to test.
-
-#### Tool layer
-
-The tool layer enforces hard boundaries regardless of policy configuration.
-
-```python
-resolve_in_workspace(root, user_path)
-```
-
-It prevents:
-
-- `../` path traversal
-- absolute path escape
-- symlink escape
-- large file reads / writes
-- ambiguous edits
-- runaway bash commands
-
-This is defense in depth: even if policy is misconfigured, tools still protect the workspace boundary.
-
----
-
-## Built-In Tools
-
-| Tool | Purpose | Safety behavior |
-|---|---|---|
-| `read` | Read a file | Workspace-bound, size-limited |
-| `write` | Write a file | Workspace-bound, size-limited |
-| `edit` | Replace unique text | Rejects ambiguous matches |
-| `apply_patch` | Apply unified diff | Workspace-bound patch application |
-| `git_diff` | Inspect working diff | Read-only |
-| `bash` | Execute shell command | Timeout, stdout/stderr truncation |
-
-The tools are intentionally simple. They are meant to demonstrate safety boundaries, not replace a full sandbox.
-
----
-
-## Context Builder
-
-The context builder assembles a useful system prompt from project-local information.
-
-Instruction precedence:
+目录结构：
 
 ```text
-.agent/instructions.md
-  > AGENTS.md
-  > CLAUDE.md
+src/codeagent/
+├── providers/          模型 Provider 抽象和具体实现
+├── runtime/            AgentLoop、AgentSession、工具、事件、扩展点
+├── policy/             策略引擎、策略网关、审批处理器
+├── loop/               工具调用限制、token budget、失败检测、防作弊
+├── context/            项目 profile、项目说明、系统提示词构建
+├── trace/              JSONL trace 持久化和会话恢复
+├── eval/               YAML eval harness、benchmark、报告和指标
+├── mcp/                stdio MCP client 和 preset 配置
+├── util/               workspace 路径安全工具
+└── cli/                Typer CLI 命令
 ```
-
-Detected project profile may include:
-
-- language
-- package manager
-- framework
-- test framework
-- likely test / lint commands
-
-Example:
-
-```text
-Language: python
-Package manager: uv
-Test framework: pytest
-Test command: pytest
-Lint command: ruff check
-```
-
-The current implementation exposes provider-level token counting through `ModelProvider.count_tokens()`. Anthropic uses the official `messages.count_tokens` API, MockProvider supports deterministic counts for tests, and fallback estimates are explicitly marked as estimated. The context builder can use these provider-backed counts when trimming project instructions.
 
 ---
 
-## Evaluation Harness
+## 快速开始
 
-CodeAgent-Py includes a deterministic YAML-based eval harness.
-
-```bash
-uv run codeagent eval --benchmark simple_edit
-uv run codeagent eval --benchmark security
-uv run codeagent eval --benchmark test_driven_fix
-uv run codeagent eval --scenario-file path/to/scenario.yaml
-```
-
-Built-in benchmark groups:
-
-- `simple_edit` — basic code-editing tasks
-- `security` — path escape, `.env` write, symlink escape, dangerous command, reward-hacking attempt
-- `multi_file_refactor` — duplicated logic extraction across multiple files
-- `test_driven_fix` — failing-test repair while protecting tests from reward hacking
-- `instructions` — AGENTS.md instruction-following scenarios
-
-Eval reports include structured metrics for tool calls, token usage, expected files changed, forbidden files touched, post-run tests, and dangerous operation blocking. CLI eval runs save per-scenario JSONL traces under `.agent/eval-traces/<scenario>.jsonl` by default; use `--no-save-traces` to disable trace export.
-
-The eval harness is intentionally lightweight. Its purpose is to show how a coding agent can be regression-tested without depending only on manual demos.
-
----
-
-## Quick Start
-
-### Requirements
-
-- Python 3.11+
-- `uv`
-- Anthropic API key for real model calls
-
-### Install
+### 安装
 
 ```bash
 git clone https://github.com/myshawnx/codeagent-py.git
@@ -509,19 +127,21 @@ cd codeagent-py
 uv sync
 ```
 
-### Configure API key
+### 配置模型
+
+真实模型调用需要 Anthropic API key：
 
 ```bash
 export ANTHROPIC_API_KEY=your-key-here
 ```
 
-### Initialize project config
+初始化项目配置：
 
 ```bash
 uv run codeagent init
 ```
 
-### Run a task
+### 运行任务
 
 ```bash
 uv run codeagent ask "Explain this codebase" --mode readonly
@@ -529,7 +149,7 @@ uv run codeagent ask "Fix the bug in src/example.py" --mode workspace-write
 uv run codeagent ask "Explain this codebase" --mode readonly --stream
 ```
 
-### Inspect session traces
+### Session 和 Resume
 
 ```bash
 uv run codeagent sessions
@@ -537,214 +157,123 @@ uv run codeagent sessions <session-id>
 uv run codeagent resume <session-id> "continue from here"
 ```
 
-### Run tests
+### Eval
 
 ```bash
-uv run pytest tests/ -q
+uv run codeagent eval --benchmark simple_edit
+uv run codeagent eval --benchmark security
+uv run codeagent eval --benchmark all
 ```
 
-Current expected result:
+### MCP
 
-```text
-165 passed, 4 skipped
+```bash
+uv run codeagent mcp presets
+uv run codeagent mcp add filesystem
+uv run codeagent mcp add github
+uv run codeagent mcp list
 ```
-
-The skipped tests require a real API key and are intentionally not part of the offline suite.
 
 ---
 
-## CLI Commands
+## 测试
 
-| Command | Purpose |
-|---|---|
-| `codeagent init` | Create `.agent/` config files |
-| `codeagent ask "..."` | Run an agent task |
-| `codeagent ask "..." --stream` | Stream model text deltas as they arrive |
-| `codeagent ask --mode readonly` | Explore without writes |
-| `codeagent eval --benchmark simple_edit` | Run built-in evals |
-| `codeagent eval --benchmark security` | Run security scenarios |
-| `codeagent eval --benchmark all --no-save-traces` | Run all benchmarks without exporting eval traces |
-| `codeagent sessions` | List saved JSONL traces |
-| `codeagent sessions <id>` | Inspect one trace |
-| `codeagent resume <id> "..."` | Reconstruct messages from a trace and continue |
-| `codeagent mcp list` | List configured MCP servers |
-| `codeagent mcp presets` | Show built-in MCP presets |
-| `codeagent mcp add filesystem` | Add the filesystem MCP preset |
-| `codeagent mcp add github` | Add the GitHub MCP preset using environment credentials |
-
----
-
-## Testing
-
-Run the full suite:
+运行完整测试：
 
 ```bash
-uv run pytest tests/ -q
+uv run pytest
 ```
 
-Important test groups:
+重点测试：
 
 ```bash
-uv run pytest tests/unit/test_providers.py -q
 uv run pytest tests/unit/test_events.py -q
 uv run pytest tests/unit/test_tool_safety.py -q
 uv run pytest tests/unit/test_trace.py -q
-uv run pytest tests/unit/test_context.py -q
 uv run pytest tests/unit/test_policy.py -q
 uv run pytest tests/unit/test_eval.py -q
 ```
 
-What the tests prove:
+测试覆盖：
 
-- provider normalization works
-- provider token counting and fallback behavior work
-- provider-neutral streaming and runtime stream events work
-- the agent loop can run offline through `MockProvider`
-- tool calls and tool results round-trip correctly
-- policy verdicts are emitted as events
-- approval requests and approval decisions are emitted as events
-- path traversal and symlink escape are blocked
-- bash timeout behavior is covered
-- JSONL traces can be written and read back
-- JSONL traces can reconstruct messages for linear resume
-- eval scenarios load richer benchmarks and collect structured metrics
-- project instruction precedence works
+- Provider normalization
+- MockProvider 离线 Agent Loop
+- streaming events
+- tool use / tool result round trip
+- policy verdict 和 approval events
+- workspace path safety
+- bash timeout
+- JSONL trace 读写和 resume
+- YAML eval scoring
 
 ---
 
-## Repository Layout
+## 优点
 
-```text
-src/codeagent/
-├── providers/          # ModelProvider abstraction and concrete providers
-├── runtime/            # AgentLoop, AgentSession, tools, events, extensions
-├── policy/             # Pure-function policy engine and gateway extension
-├── loop/               # Loop guards: budgets, repeated failures, reward hacking
-├── context/            # Project profile detection and system prompt builder
-├── trace/              # JSONL event trace persistence
-├── eval/               # YAML eval harness and benchmarks
-├── mcp/                # Stdio MCP integration and preset config helpers
-├── util/               # Workspace path safety helpers
-└── cli/                # Typer CLI commands
-```
+- **本地优先**：工具执行、权限判断、trace 都发生在本地 workspace，容易观察和调试。
+- **模块清晰**：Provider、AgentLoop、Tool Registry、PolicyGateway、EventBus、TraceWriter、EvalHarness 分层明确。
+- **离线可测**：MockProvider 可以完整模拟模型行为，核心 loop 不依赖真实 API。
+- **安全边界显式**：policy 决策和工具层硬限制分开，路径逃逸和 symlink escape 会被工具层阻止。
+- **可观测性好**：所有关键运行步骤都有事件，JSONL trace 可用于排查和恢复。
+- **Eval 友好**：YAML scenarios 可以固定输入、期望文件、禁止文件、post-run tests 和评分指标。
+- **适合二次开发**：新增 provider、tool、policy、event sink 或 MCP extension 的入口比较明确。
 
 ---
 
-## Design Tradeoffs
+## 缺点与限制
 
-### Why not LangChain?
-
-Because the goal is to demonstrate the underlying runtime mechanics. A framework would hide the most important interview topics: the loop, provider normalization, tool execution, policy gates, and trace design.
-
-### Why Python?
-
-Python is common in AI infrastructure, easy to test, and has a strong CLI / typing / validation ecosystem through Typer, Rich, and Pydantic.
-
-### Why local tools instead of a hosted sandbox?
-
-A hosted sandbox is better for production isolation, but a local tool runtime makes the safety boundaries visible and testable. This is useful for an interview project.
-
-### Why JSONL traces?
-
-JSONL is simple, append-friendly, diffable, and easy to inspect. Current traces include enough normalized model request / response payload to reconstruct conversation messages for linear resume; fork/tree sessions remain future work.
-
-### Why keep the project small?
-
-Because this is not a product clone. The code should be understandable in a code review and extensible in a live interview.
+- **不是完整产品**：没有成熟 TUI、IDE 插件、桌面端、账号体系、团队协作、计费或托管任务系统。
+- **不是强隔离 sandbox**：当前主要是 workspace 级别和工具级别防护，没有容器/虚拟机/OS-level sandbox。
+- **Provider 较少**：真实 provider 目前主要是 Anthropic；OpenAI、Gemini、本地模型等需要继续补。
+- **Resume 是线性的**：支持从 JSONL trace 继续，但还没有 fork/tree session 或 trajectory graph。
+- **MCP 是基础版**：已有 stdio presets，但没有完整 marketplace、health check、安装引导和凭证 UI。
+- **Eval 偏回归测试**：适合验证工具行为和安全阻断，不等同于大规模模型质量 benchmark。
+- **UI 较轻**：CLI 可用，但没有 diff review、plan view、权限弹窗、任务队列等成熟交互。
 
 ---
 
-## Known Limitations
+## 适合和不适合
 
-| Limitation | Current state | Better future version |
-|---|---|---|
-| Streaming UX | Provider-neutral streaming and CLI `--stream` implemented | Richer TUI/IDE progress, richer tool-use deltas |
-| Resume model | Linear resume implemented from JSONL traces | Fork/tree sessions and external process replay |
-| Token counting | Provider-level counting implemented for Anthropic and Mock; fallback estimates are marked | More providers and deeper budget integration across full conversation history |
-| Confirmation UI | `confirm` verdicts route through approval handlers; local CLI uses Rich prompts, print mode denies non-interactively, and auto mode auto-approves | Richer TUI / IDE approval prompt |
-| MCP ecosystem | Filesystem/GitHub presets configure stdio servers with env-based credential placeholders | Broader curated presets, server health checks, and richer credential UX |
-| Sandboxing | Workspace safety only | Container / OS-level sandbox |
-| Multi-agent | Not implemented | Subagent orchestration with scoped traces |
-| Production telemetry | EventSink abstraction with in-memory, console, and JSONL sinks | OpenTelemetry / metrics backend |
+适合：
 
-These limitations are intentional scope boundaries, not hidden product claims.
+- 学习或改造 coding-agent runtime。
+- 构建本地 Agent 工具调用原型。
+- 研究 policy、tool safety、trace、eval 的工程边界。
+- 作为更大 Agent 产品的 Python runtime 参考。
 
----
+不适合：
 
-## Recommended Interview Walkthrough
-
-A strong 5-minute demo:
-
-1. **Show provider abstraction**
-   - `providers/types.py`
-   - `providers/anthropic_provider.py`
-   - `providers/mock_provider.py`
-
-2. **Run offline tests**
-   ```bash
-   uv run pytest tests/unit/test_events.py -q
-   ```
-
-3. **Show tool safety**
-   - `util/workspace.py`
-   - `tests/unit/test_tool_safety.py`
-
-4. **Show event tracing**
-   - `runtime/events.py`
-   - `trace/writer.py`
-   - `.agent/sessions/*.jsonl`
-
-5. **Show policy separation**
-   - `policy/engine.py`
-   - `policy/gateway.py`
-
-6. **Run evals**
-   ```bash
-   uv run codeagent eval --benchmark security
-   ```
+- 直接替代 Claude Code、Codex、OpenCode、Cursor 等成熟编码助手。
+- 在不可信代码上做强隔离自动执行。
+- 直接接入生产仓库做高可靠自动改代码。
+- 承担需要团队权限、审计、计费、托管调度的生产工作负载。
 
 ---
 
-## Suggested Next Improvements
+## 后续方向
 
-If continuing this project, the highest-value improvements are:
-
-1. **Fork/tree resume**
-   - branch from existing traces
-   - preserve parent/child session relationships
-
-2. **Sandboxing**
-   - run tools in containers
-   - isolate network access
-   - capture filesystem diffs
-
-3. **OpenTelemetry exporter**
-   - export runtime events to a metrics / tracing backend
-   - keep exporter optional and outside the agent loop
-
-4. **MCP hardening**
-   - server health checks
-   - richer preset validation
+- 容器级 sandbox 和文件系统 diff 捕获
+- OpenAI / Gemini / local model providers
+- fork/tree session 和 trajectory replay
+- 更完整的 MCP server lifecycle
+- OpenTelemetry exporter
+- TUI diff review 和权限交互
 
 ---
 
-## Documentation
+## 文档
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — deeper system design
-- [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) — rationale and tradeoffs
-- [DEMO.md](DEMO.md) — interview demo script
-- [IMPROVEMENT_SUMMARY.md](IMPROVEMENT_SUMMARY.md) — implementation summary
+- [README_EN.md](README_EN.md)：英文 README
+- [ARCHITECTURE.md](ARCHITECTURE.md)：系统架构
+- [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md)：设计取舍
+- [DEMO.md](DEMO.md)：演示脚本
+- [IMPROVEMENT_SUMMARY.md](IMPROVEMENT_SUMMARY.md)：改进总结
+- [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)：项目概览
+- [UPDATE_SUMMARY.md](UPDATE_SUMMARY.md)：阶段更新
+- [MIGRATION.md](MIGRATION.md)：迁移说明
 
 ---
 
 ## License
 
 MIT License.
-
----
-
-## Final Note
-
-CodeAgent-Py is intentionally modest in product scope but serious in architecture. It is designed to make the important parts of coding-agent infrastructure visible: model abstraction, tool execution, policy gates, safety boundaries, event traces, and evals.
-
-That is the point of the project: not to out-feature Claude Code or Codex, but to show that the foundations of such systems are understood and implemented cleanly.

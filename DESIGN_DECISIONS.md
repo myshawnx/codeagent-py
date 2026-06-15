@@ -1,212 +1,218 @@
 # Design Decisions
 
-This document explains the architectural choices made in CodeAgent-Py and the reasoning behind them.
+This document explains the current architectural choices in CodeAgent-Py.
 
----
+## Positioning
 
-## Why Python?
+CodeAgent-Py is a Python-first, local-first coding-agent runtime. It is now mature enough to demonstrate the core infrastructure of a serious coding agent:
 
-**Decision**: Implement the agent in Python rather than TypeScript (the original agent-cli).
+- provider abstraction
+- safe local tools
+- policy and approval flow
+- event tracing
+- session resume
+- streaming
+- evals
+- MCP presets
+- parallel safe tool execution
+- read-result caching
+- observability sinks
 
-**Reasoning**:
-- **AI/ML ecosystem**: Most agent frameworks, LLM libraries, and tooling are Python-first (LangChain, LlamaIndex, Anthropic SDK, etc.)
-- **Target audience**: The interview is for an AI agent role — Python is the expected language
-- **Simplicity**: Python's async/await is cleaner for LLM I/O patterns
-- **Portability**: Easier to run in notebooks, cloud functions, and research environments
+It is not positioned as a full commercial replacement for Claude Code, Codex, Cursor, or similar products. The project focuses on the runtime foundation, not product polish.
 
-**Trade-off**: TypeScript has better type safety and LSP support, but Python's Pydantic + type hints are sufficient for this scope.
+## Why Python
 
----
+Python is the right fit for this project because most agent infrastructure, LLM SDKs, eval harnesses, and AI interview discussions are Python-first. The project still keeps strong typing through Pydantic models and type hints.
 
-## Why NOT LangChain?
+Trade-off: TypeScript has stronger compile-time ergonomics, but Python makes the runtime easier to discuss, test, and extend in AI-infrastructure contexts.
 
-**Decision**: Build a custom agent loop instead of using LangChain or LlamaIndex.
+## Why Not LangChain
 
-**Reasoning**:
-- **Interview goal**: Demonstrate understanding of agent runtime architecture, not framework integration
-- **Complexity**: LangChain adds 50+ dependencies and abstractions that obscure the core loop
-- **Control**: Custom loop gives full control over policy enforcement, event emission, and error handling
-- **Testability**: MockProvider makes the loop 100% testable offline; LangChain's abstractions make this harder
+The goal is to show the mechanics of a coding agent, not to hide them behind a framework.
 
-**What we borrowed**: The concept of a tool-calling loop, structured tool schemas, and extension hooks are industry-standard patterns (not LangChain-specific).
+CodeAgent-Py implements its own:
 
----
+- model request / response normalization
+- tool-calling loop
+- policy gateway
+- event stream
+- session trace persistence
+- eval runner
 
-## Provider Abstraction Layer
+This makes the important agent-runtime decisions visible in code review.
 
-**Decision**: Decouple the runtime from the Anthropic SDK with a `ModelProvider` protocol.
+## Provider Abstraction
 
-**Reasoning**:
-- **Vendor lock-in**: Tight coupling to Anthropic's SDK response objects is fragile
-- **Testability**: MockProvider lets us test the full loop offline (40+ tests with zero API calls)
-- **Portability**: Adding OpenAI/Google/etc. = 1 new adapter, not a runtime rewrite
-- **Production pattern**: All production agent systems abstract providers (e.g., LiteLLM, OpenRouter)
+The runtime depends on `ModelProvider`, not directly on Anthropic SDK response objects.
 
-**Implementation**:
-- Normalized types: `ModelRequest`, `ModelResponse`, `TextBlock`, `ToolUseBlock`
-- Provider protocol: `async def generate(request) -> response`
-- Adapters: `AnthropicProvider`, `MockProvider`
+Current provider behavior:
 
-**Trade-off**: Adds a thin layer of indirection, but the benefits (testability, portability) far outweigh the cost.
+- `AnthropicProvider` adapts the official async Anthropic SDK.
+- `MockProvider` enables deterministic offline tests.
+- token counting lives at the provider layer.
+- unsupported token counting falls back to explicit estimated counts.
+- streaming provider events are normalized before reaching the runtime.
 
----
+This keeps the agent loop provider-neutral while allowing provider-specific accuracy where needed.
 
-## Event Stream as Single Source of Truth
+## Token Counting at the Provider Layer
 
-**Decision**: Emit structured events for every lifecycle step instead of ad-hoc logging.
+Token counting is intentionally not hard-coded as `len(text) // 4` in the runtime.
 
-**Reasoning**:
-- **Observability**: Tracing, debugging, and evals all need the same data
-- **Consistency**: One event model beats 3 different logging systems
-- **Future-proof**: Events can power UIs, telemetry, and session replay without changing the loop
+The provider owns token counting because tokenization is provider-specific:
 
-**Implementation**:
-- Lightweight event model: `Event(type, payload, timestamp, session_id)`
-- EventBus collects events + supports live listeners
-- TraceWriter streams events to JSONL for persistence
+- Anthropic uses the official `messages.count_tokens` API.
+- MockProvider can return fixed counts for tests.
+- fallback counts are marked estimated.
 
-**Inspired by**: Pi Agent's trajectory logs, but simplified (no branching, no LLM compaction yet).
+The context builder can use provider-backed counts without knowing which provider is active.
 
----
+## Streaming as Runtime Events
 
-## Two Layers of Safety: Policy + Tools
+Streaming is modeled as provider-neutral stream events and runtime events.
 
-**Decision**: Enforce safety at both the policy layer (deny/confirm globs) AND the tool layer (workspace boundary checks).
+The non-streaming and streaming paths both normalize to `ModelResponse`, so the runtime does not grow two incompatible control flows. CLI `--stream` is a user-facing consumer of the same event model that future UI layers could consume.
 
-**Reasoning**:
-- **Defense in depth**: If policy has a bug, tools still prevent escape
-- **Clear responsibility**: Policy = user-configurable rules; Tools = hard boundaries
-- **Fail-safe**: Path traversal is NEVER allowed, even if policy misconfigured
+## Event Stream and Event Sinks
 
-**Implementation**:
-- Tool layer: `resolve_in_workspace()` prevents `../`, symlinks, absolute paths
-- Policy layer: `PolicyGateway` checks globs, command patterns, file change limits
+`EventBus` is the runtime's observable fact stream. It records lifecycle events such as:
 
-**Trade-off**: Some redundancy, but safety is worth it.
+- session start / end
+- model request / response
+- model stream deltas
+- tool call requested
+- policy verdict
+- approval request / decision
+- tool start / end
+- errors
 
----
+Event sinks keep observability outside the agent loop:
 
-## JSONL for Session Traces
+- `InMemorySink` for tests and embedded callers
+- `ConsoleSink` for local debugging
+- `TraceWriter` for JSONL persistence
 
-**Decision**: Use JSONL (one JSON object per line) for trace persistence, not SQLite.
+This keeps tracing, evals, debugging, and future telemetry aligned around the same data.
 
-**Reasoning**:
-- **Simplicity**: JSONL is human-readable, grep-able, and git-friendly
-- **Streaming**: Events can be written as they occur (no transaction overhead)
-- **Tooling**: Standard JSON parsers work; no schema migrations
+## JSONL Session Traces
 
-**Trade-off**: Complex queries (find all tool calls across sessions) are slower than SQL, but that's not a current requirement.
+JSONL was chosen over SQLite because traces should be:
 
-**Future**: If we need rich queries, JSONL can be imported into DuckDB or SQLite on demand.
+- append-friendly
+- human-readable
+- easy to diff
+- easy to inspect with basic shell tools
 
----
+Current traces include enough normalized model request / response content to support linear resume. Fork/tree session history is intentionally future work.
 
-## No Context Compaction (Yet)
+## Linear Resume Before Fork Trees
 
-**Decision**: Context builder trims by character count, not LLM-based summarization.
+The project implements linear resume first:
 
-**Reasoning**:
-- **Scope control**: LLM compaction is complex (token counting, summarization, prompt injection risks)
-- **Good enough**: For interview demos, character-based trimming + user instructions work fine
-- **Future work**: When context becomes a bottleneck, add tiktoken-based trimming or LLM summarization
+```bash
+codeagent resume <session-id> "continue from here"
+```
 
-**Implementation**: `build_system_prompt(max_tokens=N)` does char-based approximation (4 chars/token).
+This reconstructs normalized messages from JSONL events and appends a new user prompt. It does not attempt to restore running tools, external processes, or concurrent state. That narrower scope is deliberate and reliable.
 
----
+## Two Layers of Safety
 
-## Pure-Function Policy Engine
+Safety is split into two independent layers:
 
-**Decision**: Policy engine (`classify()`) is a pure function with no side effects.
+1. Policy layer: user-configurable allow / confirm / deny decisions.
+2. Tool layer: hard workspace boundaries and execution limits.
 
-**Reasoning**:
-- **Testability**: Pure functions are trivial to test (57 policy tests, all passing)
-- **Determinism**: Same input = same output, always
-- **Composability**: Can be used in policy gateway, evals, or standalone tools
+This defense-in-depth design means path traversal, symlink escapes, and absolute path escapes are blocked even if policy configuration is incomplete.
 
-**Inspired by**: Functional programming principles (Haskell, Elm) — keep effects at the edges.
+## Approval Outside the Policy Engine
 
----
+The policy engine remains a pure classifier. It returns `allow`, `confirm`, or `deny`.
 
-## Async-First Runtime
+The `PolicyGateway` handles side effects:
 
-**Decision**: Use `AsyncAnthropic` and `async def` throughout the runtime, not sync wrappers.
+- emits policy and approval events
+- calls an `ApprovalHandler`
+- blocks denied confirmations
 
-**Reasoning**:
-- **Correctness**: The original runtime had blocking calls inside `async def`, which is an anti-pattern
-- **Future concurrency**: Async enables parallel tool calls, streaming responses, etc.
-- **Industry standard**: All modern LLM APIs are async (OpenAI, Google, Anthropic)
+Implemented handlers include:
 
-**Implementation**:
-- `AnthropicProvider` wraps `AsyncAnthropic` with timeout
-- Tools are `async def` (even if they don't await, for consistency)
-- Session.run() is `async def`, called via `asyncio.run()`
+- auto approval for `auto` mode and tests
+- non-interactive deny for print / CI-style runs
+- Rich prompt approval for local CLI use
+- recording handler for tests and evals
 
----
+This keeps UI concerns out of the policy engine.
 
-## What We Borrowed from Pi Agent
+## Parallel Tool Execution
 
-**Acknowledged inspiration**:
-- **Trajectory logs**: Pi Agent's event-based session tracking → our EventBus
-- **Tool safety**: Pi's path restrictions → our `resolve_in_workspace()`
-- **Pure-function policy**: Pi's functional approach → our `classify()`
+Only explicitly marked read-only tools can run concurrently. Current built-ins:
 
-**What we changed**:
-- No branching/forking (out of scope for this project)
-- JSONL instead of Pi's custom format
-- MockProvider instead of Pi's test harness
+- `read`: parallel safe
+- `git_diff`: parallel safe
+- `write`, `edit`, `apply_patch`, `bash`: serialized
 
----
+The runtime preserves deterministic result ordering even when safe tools run in parallel. Mutating tools remain serialized.
 
-## What We Borrowed from Claude Code
+## Read Tool Cache
 
-**Acknowledged inspiration**:
-- **System prompt**: Our `DEFAULT_SYSTEM_PROMPT` is inspired by Claude Code's guidelines
-- **Tool design**: `read`, `write`, `edit`, `bash` are standard, but `apply_patch` is Claude Code-inspired
-- **CLI UX**: Typer + Rich for clean terminal output
+The read cache is intentionally narrow:
 
-**What we changed**:
-- Claude Code has UI, MCP ecosystem, git integration — we're CLI-only for simplicity
+- only caches `read`
+- validates entries with `mtime_ns` and file size
+- invalidates a path after `write`, `edit`, and `apply_patch`
+- clears all cached reads after `bash`
 
----
+This captures the common repeated-read optimization without building a risky generic tool cache.
 
-## What Is Intentionally Out of Scope
+## Eval Harness as a First-Class Runtime Consumer
 
-These are good ideas, but not implemented because they're beyond interview scope:
+The eval system is deliberately lightweight but meaningful:
 
-### Authentication & Multi-Tenancy
-- No user accounts, no auth, no rate limiting
-- Assumes single-user, local-only execution
+- YAML scenarios
+- isolated temporary workspaces
+- expected and forbidden file checks
+- structured metrics
+- post-run test commands
+- markdown / JSON reports
+- per-scenario trace export
 
-### Distributed Tracing
-- Events are session-local, not sent to observability platforms (Datadog, Honeycomb, etc.)
+The point is not leaderboard benchmarking. The point is to demonstrate how the agent can be regression-tested.
 
-### Context Compaction
-- No LLM-based summarization or token counting (tiktoken)
-- Character-based approximation is "good enough" for demos
+## MCP Presets
 
-### Resume/Replay
-- Trace reading works, but no `codeagent resume <session-id>` command yet
-- Foundation is complete, just needs CLI hook
+MCP support is implemented as stdio JSON-RPC integration plus configuration helpers.
 
-### MCP Ecosystem
-- MCP extension exists, but no pre-built server integrations
-- Users must configure MCP servers manually
+Current presets:
 
-### Interactive Confirmation UI
-- Policy returns `confirm` verdicts, but no TUI prompt yet
-- In simplified mode, confirm = allow
+- `filesystem`
+- `github`
 
-### Streaming Responses
-- API calls are one-shot (request → response)
-- No streaming tokens or incremental tool results
+Secrets are not written into `.agent/mcp.json`; presets use environment placeholders such as `${GITHUB_TOKEN}`.
 
----
+Remaining MCP work is product-level hardening: health checks, broader curated presets, better credential UX, and marketplace-like lifecycle management.
+
+## What Is Still Out of Scope
+
+These are intentionally not productionized yet:
+
+- polished TUI / IDE integration
+- hosted sandboxing or container isolation
+- fork/tree session model
+- SDK/RPC parity with commercial agent CLIs
+- multi-agent orchestration
+- production auth, billing, and rate limiting
+- OpenTelemetry exporter
+- broader MCP marketplace lifecycle
 
 ## Summary
 
-CodeAgent-Py is designed to:
-1. **Demonstrate understanding** of agent runtime architecture (provider abstraction, event stream, safety layers)
-2. **Be interview-grade**: Clean, tested, honest about scope
-3. **Balance simplicity and correctness**: No unnecessary complexity, but production patterns where they matter
+CodeAgent-Py is designed to be:
 
-The result is a runtime that's **testable** (120 tests), **safe** (defense in depth), **observable** (event stream), and **portable** (provider protocol).
+- testable: `165 passed, 4 skipped`
+- safe: policy plus tool-level hard boundaries
+- observable: EventBus, EventSink, JSONL traces
+- resumable: linear JSONL trace reconstruction
+- provider-neutral: normalized provider protocol
+- extensible: extension hooks and MCP integration
+
+That is the right level of completeness for a local-first coding-agent runtime and an interview-grade systems project.
