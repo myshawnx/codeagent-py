@@ -12,7 +12,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any, Callable, Protocol, TextIO
 
 
 class EventType(str, Enum):
@@ -80,6 +80,36 @@ class Event:
 EventListener = Callable[[Event], None]
 
 
+class EventSink(Protocol):
+    """A destination for runtime events."""
+
+    def write(self, event: Event) -> None:
+        """Write one event."""
+        ...
+
+
+@dataclass
+class InMemorySink:
+    """Event sink useful for tests, evals, and embedded callers."""
+
+    events: list[Event] = field(default_factory=list)
+
+    def write(self, event: Event) -> None:
+        self.events.append(event)
+
+
+class ConsoleSink:
+    """Compact human-readable event sink for local debugging."""
+
+    def __init__(self, stream: TextIO | None = None):
+        import sys
+
+        self.stream = stream or sys.stderr
+
+    def write(self, event: Event) -> None:
+        print(f"{event.type.value}: {event.payload}", file=self.stream)
+
+
 class EventBus:
     """In-memory event collector with optional live listeners.
 
@@ -95,6 +125,9 @@ class EventBus:
 
     def subscribe(self, listener: EventListener) -> None:
         self._listeners.append(listener)
+
+    def subscribe_sink(self, sink: EventSink) -> None:
+        self.subscribe(sink.write)
 
     def emit(
         self,

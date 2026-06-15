@@ -1,6 +1,7 @@
 """Tests for the runtime event model and offline agent loop."""
 
 import asyncio
+import io
 
 import pytest
 
@@ -13,7 +14,13 @@ from codeagent.providers import (
     text_response,
     tool_use_response,
 )
-from codeagent.runtime.events import Event, EventBus, EventType
+from codeagent.runtime.events import (
+    ConsoleSink,
+    Event,
+    EventBus,
+    EventType,
+    InMemorySink,
+)
 from codeagent.runtime.session import AgentSession
 from codeagent.runtime.tools import create_builtin_tools
 from codeagent.runtime.types import Tool
@@ -63,6 +70,29 @@ class TestEventBus:
         # Should not raise
         bus.emit(EventType.SESSION_START, {})
         assert len(bus.events) == 1
+
+    def test_subscribe_sink_receives_events(self):
+        bus = EventBus()
+        sink = InMemorySink()
+
+        bus.subscribe_sink(sink)
+        event = bus.emit(EventType.SESSION_START, {"cwd": "."})
+
+        assert sink.events == [event]
+
+    def test_console_sink_writes_compact_event(self):
+        stream = io.StringIO()
+        sink = ConsoleSink(stream=stream)
+        event = Event(
+            EventType.SESSION_START,
+            session_id="s",
+            payload={"cwd": "."},
+        )
+
+        sink.write(event)
+
+        assert "session_start" in stream.getvalue()
+        assert "'cwd': '.'" in stream.getvalue()
 
 
 class TestEventSerialization:

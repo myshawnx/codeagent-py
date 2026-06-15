@@ -61,6 +61,16 @@ class TestTraceWriterRoundTrip:
         events = read_trace(Path(temp_repo) / "nonexistent.jsonl")
         assert events == []
 
+    def test_trace_writer_implements_sink_write(self, temp_repo):
+        trace_path = Path(temp_repo) / "sink.jsonl"
+        writer = TraceWriter(trace_path)
+        writer.write(Event(EventType.SESSION_START, session_id="sink", payload={}))
+        writer.close()
+
+        events = read_trace(trace_path)
+        assert len(events) == 1
+        assert events[0].session_id == "sink"
+
 
 class TestSessionTracePersistence:
     """save_session_trace and list_sessions."""

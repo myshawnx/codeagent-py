@@ -1,7 +1,7 @@
 # CodeAgent-Py
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-162%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-165%20passing-brightgreen.svg)](#testing)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 **CodeAgent-Py is a Python-first local coding-agent runtime built as an interview-grade systems project.**
@@ -129,6 +129,7 @@ This is intentional for the current interview scope: the Python version prioriti
 | Parallel safe tools | ✅ | Read-only batches such as `read` / `git_diff` can run concurrently with ordered results |
 | Tool result cache | ✅ | `read` results are cached with mtime / size validation and invalidated after writes |
 | Runtime events | ✅ | Emits structured events for debugging, evals, and traces |
+| Event sinks | ✅ | In-memory, console, and JSONL trace sinks share the same event stream |
 | JSONL traces | ✅ | Saves sessions under `.agent/sessions/<session_id>.jsonl` |
 | Policy engine | ✅ | Pure-function classify layer for allow / confirm / deny decisions |
 | Approval modes | ✅ | `readonly`, `suggest`, `workspace-write`, `auto` |
@@ -545,7 +546,7 @@ uv run pytest tests/ -q
 Current expected result:
 
 ```text
-162 passed, 4 skipped
+165 passed, 4 skipped
 ```
 
 The skipped tests require a real API key and are intentionally not part of the offline suite.
@@ -664,7 +665,7 @@ Because this is not a product clone. The code should be understandable in a code
 | MCP ecosystem | Filesystem/GitHub presets configure stdio servers with env-based credential placeholders | Broader curated presets, server health checks, and richer credential UX |
 | Sandboxing | Workspace safety only | Container / OS-level sandbox |
 | Multi-agent | Not implemented | Subagent orchestration with scoped traces |
-| Production telemetry | JSONL local traces | OpenTelemetry / metrics backend |
+| Production telemetry | EventSink abstraction with in-memory, console, and JSONL sinks | OpenTelemetry / metrics backend |
 
 These limitations are intentional scope boundaries, not hidden product claims.
 
@@ -717,9 +718,9 @@ If continuing this project, the highest-value improvements are:
    - isolate network access
    - capture filesystem diffs
 
-3. **Telemetry exporters**
-   - split event sinks from runtime collection
-   - add console / JSONL / future OpenTelemetry sinks
+3. **OpenTelemetry exporter**
+   - export runtime events to a metrics / tracing backend
+   - keep exporter optional and outside the agent loop
 
 4. **MCP hardening**
    - server health checks

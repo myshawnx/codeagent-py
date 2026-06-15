@@ -23,6 +23,10 @@ class TraceWriter:
 
     def write_event(self, event: Event) -> None:
         """Write a single event to the trace file."""
+        self.write(event)
+
+    def write(self, event: Event) -> None:
+        """Write a single event to the trace file."""
         line = json.dumps(event.to_dict(), ensure_ascii=False)
         self._file.write(line + "\n")
         self._file.flush()
@@ -42,7 +46,7 @@ class TraceWriter:
 def attach_trace_writer(event_bus: EventBus, trace_path: Path) -> TraceWriter:
     """Attach a trace writer to an event bus so events are persisted live."""
     writer = TraceWriter(trace_path)
-    event_bus.subscribe(writer.write_event)
+    event_bus.subscribe_sink(writer)
     return writer
 
 
