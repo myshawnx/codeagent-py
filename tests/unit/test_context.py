@@ -4,17 +4,17 @@ from pathlib import Path
 
 import pytest
 
-from codeagent.config.schema import ProjectProfile
-from codeagent.context import (
+from oricode.config.schema import ProjectProfile
+from oricode.context import (
     build_system_prompt,
     build_system_prompt_with_provider_budget,
     estimate_system_prompt_tokens,
     load_project_instructions,
     render_profile_context,
 )
-from codeagent.providers import MockProvider, TokenCount, text_response
-from codeagent.runtime.events import EventBus
-from codeagent.runtime.session import AgentSession
+from oricode.providers import MockProvider, TokenCount, text_response
+from oricode.runtime.events import EventBus
+from oricode.runtime.session import AgentSession
 
 
 class TestLoadProjectInstructions:

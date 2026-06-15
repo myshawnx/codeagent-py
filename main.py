@@ -1,5 +1,5 @@
 def main():
-    print("Hello from codeagent!")
+    print("Hello from oricode!")
 
 
 if __name__ == "__main__":

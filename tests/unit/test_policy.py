@@ -2,17 +2,17 @@
 
 import pytest
 
-from codeagent.config.schema import ApprovalMode, CommandPolicy, PathPolicy, PolicyConfig, LimitsConfig
-from codeagent.policy.approval import (
+from oricode.config.schema import ApprovalMode, CommandPolicy, PathPolicy, PolicyConfig, LimitsConfig
+from oricode.policy.approval import (
     ApprovalDecision,
     AutoApprovalHandler,
     DenyApprovalHandler,
     RecordingApprovalHandler,
 )
-from codeagent.policy.engine import classify
-from codeagent.policy.gateway import PolicyGateway
-from codeagent.policy.types import ClassifyOptions, ToolCallEvent
-from codeagent.runtime.events import EventType
+from oricode.policy.engine import classify
+from oricode.policy.gateway import PolicyGateway
+from oricode.policy.types import ClassifyOptions, ToolCallEvent
+from oricode.runtime.events import EventType
 
 
 class _FakeExtensionAPI:

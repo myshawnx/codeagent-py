@@ -1,4 +1,4 @@
-# CodeAgent-Py
+# OriCode
 
 [English README](README_EN.md)
 
@@ -6,7 +6,7 @@
 [![Tests](https://img.shields.io/badge/tests-165%20passing-brightgreen.svg)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**CodeAgent-Py 是一个 Python-first、本地优先的 Coding Agent Runtime。**
+**OriCode 是一个 Python-first、本地优先的 Coding Agent Runtime。**
 
 它的重点不是做一个完整商业编码助手，而是把 Coding Agent 的底层运行机制拆成可读、可测、可扩展的模块：模型 Provider、Agent Loop、工具调用、策略审批、本地安全执行、事件流、JSONL Trace、Session Resume、Eval Harness 和 MCP stdio 集成。
 
@@ -14,7 +14,7 @@
 
 ## 功能
 
-CodeAgent-Py 可以在本地 workspace 中执行一个受控的 coding-agent 循环：
+OriCode 可以在本地 workspace 中执行一个受控的 coding-agent 循环：
 
 ```text
 用户任务
@@ -61,19 +61,19 @@ CodeAgent-Py 可以在本地 workspace 中执行一个受控的 coding-agent 循
 
 ## 和主流 Coding Agent 的区别
 
-| 项目 | 主要定位 | 更强的地方 | CodeAgent-Py 的区别 |
+| 项目 | 主要定位 | 更强的地方 | OriCode 的区别 |
 |---|---|---|---|
-| Claude Code | 成熟商业 coding assistant，覆盖 terminal、IDE、desktop、web 等使用场景 | 产品体验、真实编码效果、生态集成、权限交互、远程/多端工作流 | CodeAgent-Py 不追求产品完整度，更强调 runtime 内部实现可见、可测、可改 |
-| OpenAI Codex | OpenAI 的 coding-agent 产品和平台能力，包含模型、SDK、CLI、沙箱、工作流、子代理等方向 | 平台能力、模型能力、托管环境、规模化工作流和生态 | CodeAgent-Py 是本地 Python runtime，不依赖托管平台，更适合研究 Agent Loop 和安全边界 |
-| OpenCode | 开源 AI coding agent，提供 terminal/TUI、desktop、IDE 等形态 | 用户侧体验更完整，开源生态更成熟，多 provider 配置更丰富 | CodeAgent-Py 更小，更偏 Python runtime 参考实现，重点在模块边界、测试和 trace |
-| Pi Agent / trajectory-style agents | 偏 agent framework、trajectory、policy、eval 等概念启发 | 抽象层和研究味更强，适合探索 agent 行为建模 | CodeAgent-Py 更贴近本地代码仓库操作，实现了文件、bash、policy、trace、eval 的具体闭环 |
-| CodeAgent-Py | Python-first、本地优先 coding-agent runtime | 结构清晰、离线可测、安全边界显式、JSONL trace 可检查、适合二次开发 | 不提供成熟 UI、云端 sandbox、商业权限系统、多端同步或生产级托管 |
+| Claude Code | 成熟商业 coding assistant，覆盖 terminal、IDE、desktop、web 等使用场景 | 产品体验、真实编码效果、生态集成、权限交互、远程/多端工作流 | OriCode 不追求产品完整度，更强调 runtime 内部实现可见、可测、可改 |
+| OpenAI Codex | OpenAI 的 coding-agent 产品和平台能力，包含模型、SDK、CLI、沙箱、工作流、子代理等方向 | 平台能力、模型能力、托管环境、规模化工作流和生态 | OriCode 是本地 Python runtime，不依赖托管平台，更适合研究 Agent Loop 和安全边界 |
+| OpenCode | 开源 AI coding agent，提供 terminal/TUI、desktop、IDE 等形态 | 用户侧体验更完整，开源生态更成熟，多 provider 配置更丰富 | OriCode 更小，更偏 Python runtime 参考实现，重点在模块边界、测试和 trace |
+| Pi Agent / trajectory-style agents | 偏 agent framework、trajectory、policy、eval 等概念启发 | 抽象层和研究味更强，适合探索 agent 行为建模 | OriCode 更贴近本地代码仓库操作，实现了文件、bash、policy、trace、eval 的具体闭环 |
+| OriCode | Python-first、本地优先 coding-agent runtime | 结构清晰、离线可测、安全边界显式、JSONL trace 可检查、适合二次开发 | 不提供成熟 UI、云端 sandbox、商业权限系统、多端同步或生产级托管 |
 
 一句话总结：
 
 ```text
 Claude Code / Codex / OpenCode 更像可直接使用的产品或平台；
-CodeAgent-Py 更像一个把 coding-agent runtime 拆开给你看的 Python 参考实现。
+OriCode 更像一个把 coding-agent runtime 拆开给你看的 Python 参考实现。
 ```
 
 ---
@@ -102,7 +102,7 @@ CLI
 目录结构：
 
 ```text
-src/codeagent/
+src/oricode/
 ├── providers/          模型 Provider 抽象和具体实现
 ├── runtime/            AgentLoop、AgentSession、工具、事件、扩展点
 ├── policy/             策略引擎、策略网关、审批处理器
@@ -122,8 +122,8 @@ src/codeagent/
 ### 安装
 
 ```bash
-git clone https://github.com/myshawnx/codeagent-py.git
-cd codeagent-py
+git clone https://github.com/myshawnx/oricode.git
+cd oricode
 uv sync
 ```
 
@@ -138,40 +138,40 @@ export ANTHROPIC_API_KEY=your-key-here
 初始化项目配置：
 
 ```bash
-uv run codeagent init
+uv run oricode init
 ```
 
 ### 运行任务
 
 ```bash
-uv run codeagent ask "Explain this codebase" --mode readonly
-uv run codeagent ask "Fix the bug in src/example.py" --mode workspace-write
-uv run codeagent ask "Explain this codebase" --mode readonly --stream
+uv run oricode ask "Explain this codebase" --mode readonly
+uv run oricode ask "Fix the bug in src/example.py" --mode workspace-write
+uv run oricode ask "Explain this codebase" --mode readonly --stream
 ```
 
 ### Session 和 Resume
 
 ```bash
-uv run codeagent sessions
-uv run codeagent sessions <session-id>
-uv run codeagent resume <session-id> "continue from here"
+uv run oricode sessions
+uv run oricode sessions <session-id>
+uv run oricode resume <session-id> "continue from here"
 ```
 
 ### Eval
 
 ```bash
-uv run codeagent eval --benchmark simple_edit
-uv run codeagent eval --benchmark security
-uv run codeagent eval --benchmark all
+uv run oricode eval --benchmark simple_edit
+uv run oricode eval --benchmark security
+uv run oricode eval --benchmark all
 ```
 
 ### MCP
 
 ```bash
-uv run codeagent mcp presets
-uv run codeagent mcp add filesystem
-uv run codeagent mcp add github
-uv run codeagent mcp list
+uv run oricode mcp presets
+uv run oricode mcp add filesystem
+uv run oricode mcp add github
+uv run oricode mcp list
 ```
 
 ---

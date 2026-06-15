@@ -1,8 +1,8 @@
-# CodeAgent-Py Project Summary
+# OriCode Project Summary
 
 ## Current Status
 
-CodeAgent-Py is now a mature **Python-first, local-first coding-agent runtime**.
+OriCode is now a mature **Python-first, local-first coding-agent runtime**.
 
 It is complete enough to demonstrate the major runtime layers behind modern coding agents:
 
@@ -35,7 +35,7 @@ The skipped tests are integration-style tests that require real credentials or e
 ## Repository Snapshot
 
 ```text
-src/codeagent/
+src/oricode/
 ├── cli/            Typer CLI commands
 ├── config/         Pydantic config models and loaders
 ├── context/        project instructions, memory, profile, prompt building
@@ -76,18 +76,18 @@ src/codeagent/
 ## CLI Commands
 
 ```bash
-uv run codeagent init
-uv run codeagent ask "inspect this repo" --mode readonly
-uv run codeagent ask "fix the issue" --stream
-uv run codeagent resume <session-id> "continue from here"
-uv run codeagent sessions
-uv run codeagent sessions <session-id>
-uv run codeagent eval --benchmark all
-uv run codeagent eval --benchmark all --no-save-traces
-uv run codeagent mcp list
-uv run codeagent mcp presets
-uv run codeagent mcp add filesystem
-uv run codeagent mcp add github
+uv run oricode init
+uv run oricode ask "inspect this repo" --mode readonly
+uv run oricode ask "fix the issue" --stream
+uv run oricode resume <session-id> "continue from here"
+uv run oricode sessions
+uv run oricode sessions <session-id>
+uv run oricode eval --benchmark all
+uv run oricode eval --benchmark all --no-save-traces
+uv run oricode mcp list
+uv run oricode mcp presets
+uv run oricode mcp add filesystem
+uv run oricode mcp add github
 ```
 
 ## Why The Project Is Strong Now
@@ -117,8 +117,8 @@ These gaps are mostly product/platform scope, not missing runtime fundamentals:
 
 ## Final Assessment
 
-Yes: CodeAgent-Py is now a well-rounded coding-agent runtime.
+Yes: OriCode is now a well-rounded coding-agent runtime.
 
 The best one-line positioning is:
 
-> CodeAgent-Py is a Python-first, local-first, testable, observable, policy-aware coding-agent runtime that demonstrates the core architecture behind production coding agents while staying honest about product-scope boundaries.
+> OriCode is a Python-first, local-first, testable, observable, policy-aware coding-agent runtime that demonstrates the core architecture behind production coding agents while staying honest about product-scope boundaries.

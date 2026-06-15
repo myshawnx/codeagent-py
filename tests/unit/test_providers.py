@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from codeagent.providers import (
+from oricode.providers import (
     MockProvider,
     ModelMessage,
     ModelRequest,
@@ -21,7 +21,7 @@ from codeagent.providers import (
     text_response,
     tool_use_response,
 )
-from codeagent.providers.anthropic_provider import AnthropicProvider
+from oricode.providers.anthropic_provider import AnthropicProvider
 
 
 class _FakeUsage:
@@ -292,7 +292,7 @@ class TestTokenCountingFallback:
 class TestAnthropicProviderAsync:
     @pytest.mark.asyncio
     async def test_timeout_is_normalized(self):
-        from codeagent.providers.base import ProviderTimeoutError
+        from oricode.providers.base import ProviderTimeoutError
 
         class _SlowMessages:
             async def create(self, **kw):

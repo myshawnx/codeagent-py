@@ -56,4 +56,4 @@ def run_init(force: bool):
     
     console.print("\n[bold green]✓ Initialization complete![/bold green]")
     console.print("\nYou can now run:")
-    console.print("  [cyan]codeagent ask \"your question\"[/cyan]")
+    console.print("  [cyan]oricode ask \"your question\"[/cyan]")

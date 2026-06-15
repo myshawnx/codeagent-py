@@ -1,8 +1,8 @@
-# CodeAgent-Py Architecture
+# OriCode Architecture
 
 ## Overview
 
-CodeAgent-Py is a Python-first local coding-agent runtime. It is organized around a small set of explicit layers:
+OriCode is a Python-first local coding-agent runtime. It is organized around a small set of explicit layers:
 
 ```text
 CLI
@@ -39,17 +39,17 @@ Implemented with Typer and Rich.
 Commands:
 
 ```bash
-codeagent init
-codeagent ask "..."
-codeagent ask "..." --stream
-codeagent resume <session-id> "..."
-codeagent sessions
-codeagent sessions <session-id>
-codeagent eval --benchmark all
-codeagent mcp list
-codeagent mcp presets
-codeagent mcp add filesystem
-codeagent mcp add github
+oricode init
+oricode ask "..."
+oricode ask "..." --stream
+oricode resume <session-id> "..."
+oricode sessions
+oricode sessions <session-id>
+oricode eval --benchmark all
+oricode mcp list
+oricode mcp presets
+oricode mcp add filesystem
+oricode mcp add github
 ```
 
 ### Session Layer
@@ -325,7 +325,7 @@ session id
 
 ## Safety Model
 
-CodeAgent-Py uses defense in depth:
+OriCode uses defense in depth:
 
 1. policy classification
 2. approval handlers

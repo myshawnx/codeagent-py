@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from codeagent.providers import MockProvider, text_response, tool_use_response
-from codeagent.runtime.events import EventBus
-from codeagent.runtime.session import AgentSession
-from codeagent.runtime.tools import ReadToolCache, create_builtin_tools
-from codeagent.util import PathSecurityError, resolve_in_workspace
+from oricode.providers import MockProvider, text_response, tool_use_response
+from oricode.runtime.events import EventBus
+from oricode.runtime.session import AgentSession
+from oricode.runtime.tools import ReadToolCache, create_builtin_tools
+from oricode.util import PathSecurityError, resolve_in_workspace
 
 
 class TestWorkspacePathSafety:

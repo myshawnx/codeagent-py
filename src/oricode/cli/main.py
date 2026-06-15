@@ -4,7 +4,7 @@ import typer
 from rich.console import Console
 
 app = typer.Typer(
-    name="codeagent",
+    name="oricode",
     help="本地优先的 CLI 编码助手（Python 版）",
     add_completion=False,
 )
@@ -16,7 +16,7 @@ console = Console()
 def version():
     """显示版本信息"""
     from ..version import __version__
-    console.print(f"[bold green]codeagent[/bold green] version {__version__}")
+    console.print(f"[bold green]oricode[/bold green] version {__version__}")
 
 
 @app.command()

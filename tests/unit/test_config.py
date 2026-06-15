@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from codeagent.config.loader import load_agent_config, load_policy_config, load_project_profile
-from codeagent.config.schema import PolicyConfig, ProjectProfile, LimitsConfig
-from codeagent.config.writer import write_policy_config, write_project_profile
+from oricode.config.loader import load_agent_config, load_policy_config, load_project_profile
+from oricode.config.schema import PolicyConfig, ProjectProfile, LimitsConfig
+from oricode.config.writer import write_policy_config, write_project_profile
 
 
 class TestConfigLoader:

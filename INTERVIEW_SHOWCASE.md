@@ -1,8 +1,8 @@
-# CodeAgent-Py Interview Showcase
+# OriCode Interview Showcase
 
 ## One-Line Pitch
 
-CodeAgent-Py is a Python-first, local-first coding-agent runtime that demonstrates the core infrastructure behind production coding agents: provider abstraction, tool calling, policy control, safe local execution, traces, resume, evals, MCP integration, parallel safe tools, caching, and observability.
+OriCode is a Python-first, local-first coding-agent runtime that demonstrates the core infrastructure behind production coding agents: provider abstraction, tool calling, policy control, safe local execution, traces, resume, evals, MCP integration, parallel safe tools, caching, and observability.
 
 ## Current Proof Point
 
@@ -20,7 +20,7 @@ Most small agent demos are:
 prompt -> model -> maybe tool -> print
 ```
 
-CodeAgent-Py is structured like infrastructure:
+OriCode is structured like infrastructure:
 
 ```text
 ModelProvider
@@ -44,10 +44,10 @@ That makes it useful for interview discussions about real agent systems.
 Show:
 
 ```text
-src/codeagent/providers/types.py
-src/codeagent/providers/base.py
-src/codeagent/providers/anthropic_provider.py
-src/codeagent/providers/mock_provider.py
+src/oricode/providers/types.py
+src/oricode/providers/base.py
+src/oricode/providers/anthropic_provider.py
+src/oricode/providers/mock_provider.py
 ```
 
 Talking point:
@@ -88,9 +88,9 @@ Even if policy is wrong, tools block path traversal and symlink escapes.
 Show:
 
 ```text
-src/codeagent/policy/engine.py
-src/codeagent/policy/gateway.py
-src/codeagent/policy/approval.py
+src/oricode/policy/engine.py
+src/oricode/policy/gateway.py
+src/oricode/policy/approval.py
 ```
 
 Talking point:
@@ -102,9 +102,9 @@ The policy engine is pure. The gateway performs side effects and delegates confi
 Show:
 
 ```text
-src/codeagent/providers/types.py
-src/codeagent/runtime/loop.py
-src/codeagent/cli/commands/ask.py
+src/oricode/providers/types.py
+src/oricode/runtime/loop.py
+src/oricode/cli/commands/ask.py
 ```
 
 Run:
@@ -128,8 +128,8 @@ UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/unit/test_trace.py -q
 CLI:
 
 ```bash
-uv run codeagent sessions
-uv run codeagent resume <session-id> "continue from here"
+uv run oricode sessions
+uv run oricode resume <session-id> "continue from here"
 ```
 
 Talking point:
@@ -147,9 +147,9 @@ UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/unit/test_eval.py -q
 Show:
 
 ```text
-src/codeagent/eval/benchmarks/
-src/codeagent/eval/types.py
-src/codeagent/eval/harness.py
+src/oricode/eval/benchmarks/
+src/oricode/eval/types.py
+src/oricode/eval/harness.py
 ```
 
 Talking point:
@@ -161,9 +161,9 @@ The eval harness treats agent behavior as something that can be regression-teste
 Run:
 
 ```bash
-uv run codeagent mcp presets
-uv run codeagent mcp add filesystem
-uv run codeagent mcp list
+uv run oricode mcp presets
+uv run oricode mcp add filesystem
+uv run oricode mcp list
 ```
 
 Talking point:
@@ -214,7 +214,7 @@ Inspect the JSONL trace. It contains model requests, responses, tool calls, poli
 
 ### How do you resume a session?
 
-`codeagent resume` reads JSONL trace events, reconstructs normalized messages, appends a new prompt, and continues the loop.
+`oricode resume` reads JSONL trace events, reconstructs normalized messages, appends a new prompt, and continues the loop.
 
 ### How do you evaluate the agent?
 

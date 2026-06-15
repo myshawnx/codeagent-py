@@ -1,10 +1,10 @@
-# CodeAgent-Py Update Summary
+# OriCode Update Summary
 
 ## What Changed
 
 The project documentation and runtime have been brought up to date with the current implementation.
 
-CodeAgent-Py should now be presented as a mature local coding-agent runtime with a complete core architecture:
+OriCode should now be presented as a mature local coding-agent runtime with a complete core architecture:
 
 - provider abstraction
 - token counting
@@ -63,7 +63,7 @@ The root project docs now align around the same message:
 
 ## Honest Scope Boundary
 
-CodeAgent-Py is now quite complete as a **local coding-agent runtime**.
+OriCode is now quite complete as a **local coding-agent runtime**.
 
 It is not a complete commercial product. The following are still outside the current scope:
 
@@ -79,4 +79,4 @@ It is not a complete commercial product. The following are still outside the cur
 
 Use this description in interviews:
 
-> CodeAgent-Py is a Python-first, local-first coding-agent runtime. It demonstrates the core infrastructure behind production coding agents: provider abstraction, tool calling, policy and approval control, safe local execution, traces, resume, evals, MCP integration, parallel safe tools, caching, and observability.
+> OriCode is a Python-first, local-first coding-agent runtime. It demonstrates the core infrastructure behind production coding agents: provider abstraction, tool calling, policy and approval control, safe local execution, traces, resume, evals, MCP integration, parallel safe tools, caching, and observability.

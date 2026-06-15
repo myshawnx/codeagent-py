@@ -1,12 +1,12 @@
-# CodeAgent-Py Demo Guide
+# OriCode Demo Guide
 
-This guide is a concise walkthrough for presenting CodeAgent-Py as a mature local coding-agent runtime.
+This guide is a concise walkthrough for presenting OriCode as a mature local coding-agent runtime.
 
 ## Setup
 
 ```bash
 uv sync
-uv run codeagent init
+uv run oricode init
 export ANTHROPIC_API_KEY=your-key-here
 ```
 
@@ -18,7 +18,7 @@ Open [README.md](README.md) and start with the "Current Maturity" section.
 
 Key message:
 
-> CodeAgent-Py is runtime-complete for interview and architecture discussion, but not a polished commercial coding-assistant product.
+> OriCode is runtime-complete for interview and architecture discussion, but not a polished commercial coding-assistant product.
 
 It has the core runtime layers:
 
@@ -72,8 +72,8 @@ What to explain:
 Best files:
 
 ```text
-src/codeagent/runtime/tools.py
-src/codeagent/util/workspace.py
+src/oricode/runtime/tools.py
+src/oricode/util/workspace.py
 tests/unit/test_tool_safety.py
 ```
 
@@ -95,9 +95,9 @@ Show:
 Best files:
 
 ```text
-src/codeagent/policy/engine.py
-src/codeagent/policy/gateway.py
-src/codeagent/policy/approval.py
+src/oricode/policy/engine.py
+src/oricode/policy/gateway.py
+src/oricode/policy/approval.py
 ```
 
 ## Demo 5: Streaming Runtime
@@ -111,7 +111,7 @@ UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/unit/test_events.py::TestOfflineA
 Then show CLI support:
 
 ```bash
-uv run codeagent ask "summarize this project" --stream
+uv run oricode ask "summarize this project" --stream
 ```
 
 Talking point:
@@ -129,9 +129,9 @@ UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/unit/test_trace.py -q
 CLI flow:
 
 ```bash
-uv run codeagent sessions
-uv run codeagent sessions <session-id>
-uv run codeagent resume <session-id> "continue from here"
+uv run oricode sessions
+uv run oricode sessions <session-id>
+uv run oricode resume <session-id> "continue from here"
 ```
 
 Talking point:
@@ -149,10 +149,10 @@ UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/unit/test_eval.py -q
 CLI examples:
 
 ```bash
-uv run codeagent eval --benchmark simple_edit
-uv run codeagent eval --benchmark security
-uv run codeagent eval --benchmark test_driven_fix
-uv run codeagent eval --benchmark all --no-save-traces
+uv run oricode eval --benchmark simple_edit
+uv run oricode eval --benchmark security
+uv run oricode eval --benchmark test_driven_fix
+uv run oricode eval --benchmark all --no-save-traces
 ```
 
 Show:
@@ -168,8 +168,8 @@ Show:
 Best files:
 
 ```text
-src/codeagent/eval/
-src/codeagent/eval/benchmarks/
+src/oricode/eval/
+src/oricode/eval/benchmarks/
 tests/unit/test_eval.py
 ```
 
@@ -178,16 +178,16 @@ tests/unit/test_eval.py
 Run:
 
 ```bash
-uv run codeagent mcp presets
-uv run codeagent mcp add filesystem
-uv run codeagent mcp list
+uv run oricode mcp presets
+uv run oricode mcp add filesystem
+uv run oricode mcp list
 ```
 
 For GitHub:
 
 ```bash
 export GITHUB_TOKEN=...
-uv run codeagent mcp add github
+uv run oricode mcp add github
 ```
 
 Talking point:
@@ -268,4 +268,4 @@ Still future work:
 
 Final message:
 
-> CodeAgent-Py is a complete local coding-agent runtime foundation. It is serious architecture, tested offline, and honest about what remains product/platform scope.
+> OriCode is a complete local coding-agent runtime foundation. It is serious architecture, tested offline, and honest about what remains product/platform scope.

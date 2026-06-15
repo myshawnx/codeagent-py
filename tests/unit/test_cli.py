@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from codeagent.cli.commands.init import run_init
+from oricode.cli.commands.init import run_init
 
 
 class TestInitCommand:

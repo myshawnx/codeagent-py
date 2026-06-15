@@ -1,8 +1,8 @@
-# CodeAgent-Py Improvement Summary
+# OriCode Improvement Summary
 
 ## Executive Summary
 
-CodeAgent-Py has been upgraded from a functional prototype into a mature local coding-agent runtime.
+OriCode has been upgraded from a functional prototype into a mature local coding-agent runtime.
 
 Current verification:
 
@@ -96,7 +96,7 @@ Why it matters: streaming improves UX without splitting the runtime into two inc
 Implemented trace-based resume:
 
 - reconstruct messages from JSONL trace events
-- `codeagent resume <session-id> "prompt"`
+- `oricode resume <session-id> "prompt"`
 - corrupted trace safety handling
 - resume tests showing history is sent back to provider
 
@@ -137,9 +137,9 @@ Why it matters: the project can regress-test agent behavior, not just demonstrat
 Implemented practical MCP configuration:
 
 - `.agent/mcp.json`
-- `codeagent mcp presets`
-- `codeagent mcp add filesystem`
-- `codeagent mcp add github`
+- `oricode mcp presets`
+- `oricode mcp add filesystem`
+- `oricode mcp add github`
 - env placeholder credential handling such as `${GITHUB_TOKEN}`
 - automatic MCP extension loading in `ask` and `resume`
 - legacy config compatibility
@@ -209,7 +209,7 @@ Important covered areas:
 
 ## Current Positioning
 
-CodeAgent-Py is now best described as:
+OriCode is now best described as:
 
 > A Python-first, local-first, testable, observable, policy-aware coding-agent runtime.
 

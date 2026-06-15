@@ -1,5 +1,5 @@
 [project]
-name = "codeagent"
+name = "oricode"
 version = "0.1.0"
 description = "本地优先的 CLI 编码助手（Python 版）"
 readme = "README.md"
@@ -20,7 +20,7 @@ dev = [
 ]
 
 [project.scripts]
-codeagent = "codeagent.cli.main:app"
+oricode = "oricode.cli.main:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -38,7 +38,7 @@ addopts = [
 ]
 
 [tool.coverage.run]
-source = ["src/codeagent"]
+source = ["src/oricode"]
 omit = ["tests/*", "**/__pycache__/*"]
 
 [tool.coverage.report]

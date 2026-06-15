@@ -66,7 +66,7 @@ def _list_servers(cwd: str):
         for name, preset in sorted(list_presets().items()):
             console.print(f"  [cyan]{name}[/cyan] - {preset.description}")
         console.print("\nTo add a server:")
-        console.print("  [cyan]codeagent mcp add <preset-name>[/cyan]")
+        console.print("  [cyan]oricode mcp add <preset-name>[/cyan]")
         return
     
     config = load_mcp_config(cwd)

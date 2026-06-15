@@ -1,4 +1,4 @@
-# CodeAgent-Py
+# OriCode
 
 [中文 README](README.md)
 
@@ -6,7 +6,7 @@
 [![Tests](https://img.shields.io/badge/tests-165%20passing-brightgreen.svg)](#testing)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**CodeAgent-Py is a Python-first, local-first coding-agent runtime.**
+**OriCode is a Python-first, local-first coding-agent runtime.**
 
 It is not a thin script that sends a prompt to a model. It separates the runtime into explicit engineering layers: model providers, agent loop, tool registry and execution, policy gateway, safety boundaries, runtime events, JSONL traces, session resume, eval harness, MCP integration, and observability sinks.
 
@@ -16,7 +16,7 @@ The goal is to provide a testable and inspectable local runtime where an LLM can
 
 ## What It Does
 
-A typical CodeAgent-Py task follows this flow:
+A typical OriCode task follows this flow:
 
 ```text
 user task
@@ -97,7 +97,7 @@ CLI
 Repository layout:
 
 ```text
-src/codeagent/
+src/oricode/
 ├── providers/          ModelProvider abstraction and concrete providers
 ├── runtime/            AgentLoop, AgentSession, tools, events, extensions
 ├── policy/             Policy engine, gateway, and approval handlers
@@ -115,8 +115,8 @@ src/codeagent/
 ## Quick Start
 
 ```bash
-git clone https://github.com/myshawnx/codeagent-py.git
-cd codeagent-py
+git clone https://github.com/myshawnx/oricode.git
+cd oricode
 uv sync
 ```
 
@@ -129,31 +129,31 @@ export ANTHROPIC_API_KEY=your-key-here
 Initialize config:
 
 ```bash
-uv run codeagent init
+uv run oricode init
 ```
 
 Run tasks:
 
 ```bash
-uv run codeagent ask "Explain this codebase" --mode readonly
-uv run codeagent ask "Fix the bug in src/example.py" --mode workspace-write
-uv run codeagent ask "Explain this codebase" --mode readonly --stream
+uv run oricode ask "Explain this codebase" --mode readonly
+uv run oricode ask "Fix the bug in src/example.py" --mode workspace-write
+uv run oricode ask "Explain this codebase" --mode readonly --stream
 ```
 
 Inspect or resume sessions:
 
 ```bash
-uv run codeagent sessions
-uv run codeagent sessions <session-id>
-uv run codeagent resume <session-id> "continue from here"
+uv run oricode sessions
+uv run oricode sessions <session-id>
+uv run oricode resume <session-id> "continue from here"
 ```
 
 Run evals:
 
 ```bash
-uv run codeagent eval --benchmark simple_edit
-uv run codeagent eval --benchmark security
-uv run codeagent eval --benchmark all
+uv run oricode eval --benchmark simple_edit
+uv run oricode eval --benchmark security
+uv run oricode eval --benchmark all
 ```
 
 Run tests:

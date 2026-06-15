@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from codeagent.context.profile import detect_profile
+from oricode.context.profile import detect_profile
 
 
 @pytest.fixture

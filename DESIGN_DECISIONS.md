@@ -1,10 +1,10 @@
 # Design Decisions
 
-This document explains the current architectural choices in CodeAgent-Py.
+This document explains the current architectural choices in OriCode.
 
 ## Positioning
 
-CodeAgent-Py is a Python-first, local-first coding-agent runtime. It is now mature enough to demonstrate the core infrastructure of a serious coding agent:
+OriCode is a Python-first, local-first coding-agent runtime. It is now mature enough to demonstrate the core infrastructure of a serious coding agent:
 
 - provider abstraction
 - safe local tools
@@ -30,7 +30,7 @@ Trade-off: TypeScript has stronger compile-time ergonomics, but Python makes the
 
 The goal is to show the mechanics of a coding agent, not to hide them behind a framework.
 
-CodeAgent-Py implements its own:
+OriCode implements its own:
 
 - model request / response normalization
 - tool-calling loop
@@ -110,7 +110,7 @@ Current traces include enough normalized model request / response content to sup
 The project implements linear resume first:
 
 ```bash
-codeagent resume <session-id> "continue from here"
+oricode resume <session-id> "continue from here"
 ```
 
 This reconstructs normalized messages from JSONL events and appends a new user prompt. It does not attempt to restore running tools, external processes, or concurrent state. That narrower scope is deliberate and reliable.
@@ -206,7 +206,7 @@ These are intentionally not productionized yet:
 
 ## Summary
 
-CodeAgent-Py is designed to be:
+OriCode is designed to be:
 
 - testable: `165 passed, 4 skipped`
 - safe: policy plus tool-level hard boundaries

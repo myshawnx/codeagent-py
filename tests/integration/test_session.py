@@ -3,11 +3,11 @@
 import os
 import pytest
 
-from codeagent.config.schema import ApprovalMode, PolicyConfig
-from codeagent.loop.guards_ext import LoopGuardsExtension
-from codeagent.loop.types import LoopGuardOptions
-from codeagent.policy.gateway import PolicyGateway
-from codeagent.runtime.session import AgentSession
+from oricode.config.schema import ApprovalMode, PolicyConfig
+from oricode.loop.guards_ext import LoopGuardsExtension
+from oricode.loop.types import LoopGuardOptions
+from oricode.policy.gateway import PolicyGateway
+from oricode.runtime.session import AgentSession
 
 
 # 跳过需要真实 API 密钥的测试

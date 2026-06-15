@@ -1,8 +1,8 @@
-# Migration Notes: Agent CLI to CodeAgent-Py
+# Migration Notes: Agent CLI to OriCode
 
 ## Purpose
 
-CodeAgent-Py began as a Python continuation of the earlier TypeScript `agent-cli` project.
+OriCode began as a Python continuation of the earlier TypeScript `agent-cli` project.
 
 The goal was not a line-by-line port. The goal was to preserve the valuable agent-runtime ideas while making the system more natural to discuss and extend in Python:
 
@@ -40,7 +40,7 @@ Current expected test result:
 
 ## Feature Mapping
 
-| Capability | TypeScript agent-cli | CodeAgent-Py |
+| Capability | TypeScript agent-cli | OriCode |
 |---|---:|---:|
 | Agent loop | Pi/framework-oriented | Custom Python `AgentLoop` |
 | Provider abstraction | Product-oriented | Explicit `ModelProvider` |
@@ -88,7 +88,7 @@ Safety is layered:
 
 ### Eval-First Design
 
-The eval harness is now a first-class package under `src/codeagent/eval/`.
+The eval harness is now a first-class package under `src/oricode/eval/`.
 
 Built-in benchmarks cover:
 
@@ -100,7 +100,7 @@ Built-in benchmarks cover:
 
 ## Known Differences
 
-CodeAgent-Py intentionally does not try to recreate every product-level feature from the TypeScript project or from commercial tools.
+OriCode intentionally does not try to recreate every product-level feature from the TypeScript project or from commercial tools.
 
 Still future work:
 
@@ -119,4 +119,4 @@ Use the TypeScript version as historical context for lineage and design continui
 
 Best description:
 
-> CodeAgent-Py is the Python-first hardening pass of the earlier Agent CLI ideas, with stronger provider abstraction, testing, observability, evals, resume, MCP presets, safe parallel tools, and caching.
+> OriCode is the Python-first hardening pass of the earlier Agent CLI ideas, with stronger provider abstraction, testing, observability, evals, resume, MCP presets, safe parallel tools, and caching.

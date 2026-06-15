@@ -14,7 +14,7 @@ from .loop import AgentLoop
 from .tools import create_builtin_tools
 from .types import Tool
 
-DEFAULT_SYSTEM_PROMPT = """You are CodeAgent, a careful local coding assistant.
+DEFAULT_SYSTEM_PROMPT = """You are OriCode, a careful local coding assistant.
 
 You operate inside a user's workspace with policy-enforced tools. Guidelines:
 - Prefer reading and understanding code before editing it.

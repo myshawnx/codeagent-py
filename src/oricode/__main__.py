@@ -1,4 +1,4 @@
-"""主入口点 - 支持 python -m codeagent"""
+"""主入口点 - 支持 python -m oricode"""
 
 from .cli.main import app
 

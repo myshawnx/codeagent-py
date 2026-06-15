@@ -2,9 +2,9 @@
 
 import json
 
-from codeagent.mcp.client import build_process_env, resolve_env_value
-from codeagent.mcp.extension import normalize_server_configs
-from codeagent.mcp.presets import (
+from oricode.mcp.client import build_process_env, resolve_env_value
+from oricode.mcp.extension import normalize_server_configs
+from oricode.mcp.presets import (
     MCPServerConfig,
     add_preset,
     list_presets,

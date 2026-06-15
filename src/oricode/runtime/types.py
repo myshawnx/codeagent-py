@@ -1,6 +1,6 @@
 """Runtime type definitions.
 
-The canonical model/content types now live in ``codeagent.providers.types``.
+The canonical model/content types now live in ``oricode.providers.types``.
 This module keeps the tool + extension-API types and re-exports the provider
 block types for backward compatibility with older imports.
 """

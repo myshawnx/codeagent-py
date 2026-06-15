@@ -2,11 +2,11 @@
 
 import pytest
 
-from codeagent.eval.harness import EvalHarness, build_eval_metrics
-from codeagent.eval.loader import load_scenarios_from_yaml
-from codeagent.eval.scoring import score_scenario
-from codeagent.eval.types import EvalMetrics, Scenario
-from codeagent.runtime.events import Event, EventType
+from oricode.eval.harness import EvalHarness, build_eval_metrics
+from oricode.eval.loader import load_scenarios_from_yaml
+from oricode.eval.scoring import score_scenario
+from oricode.eval.types import EvalMetrics, Scenario
+from oricode.runtime.events import Event, EventType
 
 
 class TestScenarioLoader:
@@ -14,7 +14,7 @@ class TestScenarioLoader:
     
     def test_load_simple_edit_scenarios(self):
         """测试加载简单编辑场景"""
-        benchmarks_path = "src/codeagent/eval/benchmarks/simple_edit.yaml"
+        benchmarks_path = "src/oricode/eval/benchmarks/simple_edit.yaml"
         scenarios = load_scenarios_from_yaml(benchmarks_path)
         
         assert len(scenarios) == 3
@@ -32,7 +32,7 @@ class TestScenarioLoader:
     )
     def test_load_richer_eval_benchmarks(self, benchmark):
         """测试加载更丰富的内置评测场景"""
-        benchmarks_path = f"src/codeagent/eval/benchmarks/{benchmark}.yaml"
+        benchmarks_path = f"src/oricode/eval/benchmarks/{benchmark}.yaml"
         scenarios = load_scenarios_from_yaml(benchmarks_path)
 
         assert len(scenarios) >= 1

@@ -5,7 +5,7 @@ import io
 
 import pytest
 
-from codeagent.providers import (
+from oricode.providers import (
     MockProvider,
     ModelResponse,
     ModelStreamEvent,
@@ -14,16 +14,16 @@ from codeagent.providers import (
     text_response,
     tool_use_response,
 )
-from codeagent.runtime.events import (
+from oricode.runtime.events import (
     ConsoleSink,
     Event,
     EventBus,
     EventType,
     InMemorySink,
 )
-from codeagent.runtime.session import AgentSession
-from codeagent.runtime.tools import create_builtin_tools
-from codeagent.runtime.types import Tool
+from oricode.runtime.session import AgentSession
+from oricode.runtime.tools import create_builtin_tools
+from oricode.runtime.types import Tool
 
 
 class TestEventBus:
@@ -331,8 +331,8 @@ class TestOfflineAgentLoop:
 
     @pytest.mark.asyncio
     async def test_policy_blocks_tool(self, temp_repo):
-        from codeagent.config.schema import ApprovalMode, PathPolicy, PolicyConfig
-        from codeagent.policy.gateway import PolicyGateway
+        from oricode.config.schema import ApprovalMode, PathPolicy, PolicyConfig
+        from oricode.policy.gateway import PolicyGateway
 
         provider = MockProvider(
             responses=[

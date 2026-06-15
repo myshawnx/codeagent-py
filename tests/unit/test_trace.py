@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from codeagent.providers import MockProvider, text_response, tool_use_response
-from codeagent.runtime.events import Event, EventBus, EventType
-from codeagent.runtime.session import AgentSession
-from codeagent.trace import (
+from oricode.providers import MockProvider, text_response, tool_use_response
+from oricode.runtime.events import Event, EventBus, EventType
+from oricode.runtime.session import AgentSession
+from oricode.trace import (
     TraceReconstructionError,
     TraceWriter,
     attach_trace_writer,

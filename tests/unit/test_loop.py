@@ -2,15 +2,15 @@
 
 import pytest
 
-from codeagent.config.schema import ProjectProfile
-from codeagent.loop.guards import (
+from oricode.config.schema import ProjectProfile
+from oricode.loop.guards import (
     should_block_tool_call,
     should_soft_stop_on_failure,
     update_state_after_tool_call,
     update_state_after_tool_result,
     update_state_after_message,
 )
-from codeagent.loop.types import LoopGuardOptions, LoopGuardState
+from oricode.loop.types import LoopGuardOptions, LoopGuardState
 
 
 @pytest.fixture

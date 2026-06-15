@@ -37,7 +37,7 @@ def run_sessions(session_id: str | None):
         sessions = list_sessions(cwd)
         if not sessions:
             console.print("[yellow]No sessions found.[/yellow]")
-            console.print("Run [cyan]codeagent ask \"...\"[/cyan] to create a session.")
+            console.print("Run [cyan]oricode ask \"...\"[/cyan] to create a session.")
             return
 
         table = Table(title="Agent Sessions")
@@ -55,4 +55,4 @@ def run_sessions(session_id: str | None):
             )
 
         console.print(table)
-        console.print("\nShow details: [cyan]codeagent sessions <session-id>[/cyan]")
+        console.print("\nShow details: [cyan]oricode sessions <session-id>[/cyan]")
